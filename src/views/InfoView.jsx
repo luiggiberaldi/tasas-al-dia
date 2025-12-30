@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Shield, FileText, AlertTriangle, Server, ChevronRight, Terminal, Copy, ArrowLeft, CreditCard, Calculator, BellRing, TrendingUp, Info } from 'lucide-react';
+import { Shield, FileText, AlertTriangle, Server, ChevronRight, Terminal, Copy, ArrowLeft, CreditCard, Calculator, BellRing, TrendingUp, Info, QrCode, Mic, Maximize } from 'lucide-react';
 
 export default function InfoView({ logs, toggleTheme, theme }) {
   const [showLogs, setShowLogs] = useState(false);
@@ -55,7 +55,7 @@ export default function InfoView({ logs, toggleTheme, theme }) {
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500 pt-6 pb-24">
       
-      {/* HEADER (Estilo Fénix) */}
+      {/* HEADER (Estilo Fénix v3.0) */}
       <div className="flex items-center gap-3 px-2">
          <div className="p-3 bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700">
             <Info size={24} className="text-brand-dark dark:text-brand stroke-[2.5]" />
@@ -65,7 +65,7 @@ export default function InfoView({ logs, toggleTheme, theme }) {
                 Información
             </h2>
             <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">
-                TasasAlDía <span className="text-brand-dark dark:text-brand">v2.1</span>
+                TasasAlDía <span className="text-brand-dark dark:text-brand">v3.0 Fénix</span>
             </p>
          </div>
       </div>
@@ -87,36 +87,36 @@ export default function InfoView({ logs, toggleTheme, theme }) {
         </div>
       </div>
 
-      {/* --- ECOSISTEMA (Grid) --- */}
+      {/* --- ECOSISTEMA ACTUALIZADO V3.0 --- */}
       <div className="space-y-3">
         <div className="flex items-center gap-2 px-2">
-            <h3 className="font-black text-lg text-slate-800 dark:text-white">Ecosistema</h3>
-            <span className="text-[10px] font-bold bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-full text-slate-400 uppercase">Todo en uno</span>
+            <h3 className="font-black text-lg text-slate-800 dark:text-white">Novedades v3.0</h3>
+            <span className="text-[10px] font-bold bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-full text-slate-400 uppercase">Feature Set</span>
         </div>
         
         <div className="grid grid-cols-2 gap-3">
             <FeatureCard 
-                icon={<TrendingUp size={18} strokeWidth={2.5} />} 
-                title="Monitor Híbrido" 
-                desc="Tasas BCV y USDT (P2P) actualizadas en tiempo real."
+                icon={<Maximize size={18} strokeWidth={2.5} />} 
+                title="Monitor & Kiosco" 
+                desc="Visualiza la brecha cambiaria y usa el nuevo modo Pantalla Completa."
                 bgClass="bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400"
             />
             <FeatureCard 
-                icon={<CreditCard size={18} strokeWidth={2.5} />} 
-                title="Mis Cuentas" 
-                desc="Guarda tus datos de Pago Móvil/Zelle y compártelos."
+                icon={<QrCode size={18} strokeWidth={2.5} />} 
+                title="Pagos con QR" 
+                desc="Genera códigos QR de tus cuentas para cobrar al instante."
                 bgClass="bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20 dark:text-emerald-400"
             />
             <FeatureCard 
-                icon={<Calculator size={18} strokeWidth={2.5} />} 
-                title="Calculadora Smart" 
-                desc="Conversiones instantáneas entre todas las monedas."
+                icon={<Mic size={18} strokeWidth={2.5} />} 
+                title="Dictado por Voz" 
+                desc="Usa el micrófono para ingresar montos en la calculadora."
                 bgClass="bg-purple-50 text-purple-600 dark:bg-purple-900/20 dark:text-purple-400"
             />
             <FeatureCard 
                 icon={<BellRing size={18} strokeWidth={2.5} />} 
                 title="Alertas Push" 
-                desc="Notificaciones automáticas cuando cambia la tasa."
+                desc="Recibe notificaciones automáticas cuando cambia la tasa."
                 bgClass="bg-amber-50 text-amber-600 dark:bg-amber-900/20 dark:text-amber-400"
             />
         </div>

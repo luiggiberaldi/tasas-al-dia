@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ArrowRightLeft, Check, Copy, Camera, ToggleLeft, ToggleRight, Smartphone, Building2, Bitcoin, Wallet, ArrowLeft, DollarSign } from 'lucide-react';
+import { ArrowRightLeft, Check, Copy, Camera, ToggleLeft, ToggleRight, Smartphone, Building2, Bitcoin, Wallet, ArrowLeft, DollarSign, Mic, MicOff } from 'lucide-react';
 import html2canvas from 'html2canvas';
 
 // Imports Arquitectura
@@ -29,6 +29,51 @@ export default function CalculatorView({ rates, theme }) {
   const [includeRef, setIncludeRef] = useState(true);
   const captureRef = useRef(null);
 
+  // Estado de Escucha de Voz
+  const [isListening, setIsListening] = useState(false);
+
+  // --- FEATURE: CONTROL POR VOZ ---
+  const handleVoiceInput = () => {
+    if (!('webkitSpeechRecognition' in window)) {
+        alert("Tu navegador no soporta el reconocimiento de voz. Intenta usar Chrome.");
+        return;
+    }
+
+    const recognition = new window.webkitSpeechRecognition();
+    recognition.lang = 'es-VE'; 
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    
+    setIsListening(true);
+    recognition.start();
+
+    recognition.onresult = (event) => {
+        const transcript = event.results[0][0].transcript.toLowerCase();
+        const numbers = transcript.match(/(\d+[.,]?\d*)/); 
+        
+        if (numbers) {
+            let amount = numbers[0].replace(',', '.');
+            
+            if (transcript.includes('bolívar') || transcript.includes('bolívares') || transcript.includes('bs')) {
+                calc.setFrom('VES');
+                calc.handleAmountChange(amount, 'top');
+            } else if (transcript.includes('dólar') || transcript.includes('dólares') || transcript.includes('usdt')) {
+                calc.setFrom('USDT'); 
+                calc.handleAmountChange(amount, 'top');
+            } else if (transcript.includes('euro') || transcript.includes('euros')) {
+                calc.setFrom('EUR');
+                calc.handleAmountChange(amount, 'top');
+            } else {
+                calc.handleAmountChange(amount, 'top');
+            }
+        }
+        setIsListening(false);
+    };
+
+    recognition.onerror = () => setIsListening(false);
+    recognition.onend = () => setIsListening(false);
+  };
+
   // --- Handlers ---
   const handleCopy = () => {
     if (!calc.amountBot && !calc.amountTop) return;
@@ -39,75 +84,76 @@ export default function CalculatorView({ rates, theme }) {
     const fmtTop = cFrom.id === 'VES' ? formatBs(calc.safeParse(calc.amountTop)) : formatUsd(calc.safeParse(calc.amountTop));
     const fmtBot = cTo.id === 'VES' ? formatBs(calc.safeParse(calc.amountBot)) : formatUsd(calc.safeParse(calc.amountBot));
     
-    const eq = getVisualEquivalent(calc);
-    const extra = eq ? `\n(≈ ${eq} Bs)` : '';
-    const text = `💰 *Cambio al día (${date})*\n\n${cFrom.icon} ${fmtTop} ${cFrom.label}\n⬇️\n${cTo.icon} *${fmtBot} ${cTo.label}*${extra}`;
+    // Versión simple para copiar
+    const text = `💰 Cambio del día (${date})\n${fmtTop} ${cFrom.label} -> ${fmtBot} ${cTo.label}`;
     
     navigator.clipboard.writeText(text);
     setCopied(true); setTimeout(() => setCopied(false), 2000);
   };
 
-  // Lógica principal de compartir (Recibe el tipo de tasa Zelle desde el hijo)
+  // ✅ HANDLER WHATSAPP CORREGIDO (Sin Cálculo en el Header)
   const handleShareWhatsApp = (zelleRateType = 'bcv') => {
     if (!selectedAccount) return;
 
-    // 1. Armamos el encabezado del cálculo
-    const cFrom = calc.currencies.find(c => c.id === calc.from);
-    const cTo = calc.currencies.find(c => c.id === calc.to);
-    const fmtTop = cFrom.id === 'VES' ? formatBs(calc.safeParse(calc.amountTop)) : formatUsd(calc.safeParse(calc.amountTop));
-    const fmtBot = cTo.id === 'VES' ? formatBs(calc.safeParse(calc.amountBot)) : formatUsd(calc.safeParse(calc.amountBot));
-    
-    let msg = `🧮 *Cálculo del Día*\n${cFrom.icon} ${fmtTop} ${cFrom.label} ➡️ ${cTo.icon} ${fmtBot} ${cTo.label}\n\n`;
+    // 1. Inicializamos el mensaje vacío (Ya no incluye el cálculo arriba)
+    let msg = "";
 
-    // 2. Agregamos los datos de la cuenta
+    // 2. Datos de la cuenta (Texto plano)
     const acc = selectedAccount;
     if (acc.type === 'pago_movil') {
-        msg += `📌 *Datos Pago Móvil*\n🏦 ${acc.bank}\n📱 ${acc.phone}\n🆔 ${acc.id}\n👤 ${acc.holder || acc.alias}`;
+        msg += `*Datos Pago Móvil*\nBanco: ${acc.bank}\nTel: ${acc.phone}\nCI: ${acc.id}\nTitular: ${acc.holder || acc.alias}`;
     } else if (acc.type === 'transferencia') {
-        msg += `🏦 *Datos Transferencia*\n🏛️ ${acc.bank}\n🔢 ${acc.accountNumber}\n🆔 ${acc.id}\n👤 ${acc.holder}`;
+        msg += `*Datos Transferencia*\nBanco: ${acc.bank}\nCuenta: ${acc.accountNumber}\nCI/RIF: ${acc.id}\nTitular: ${acc.holder}`;
     } else if (acc.type === 'zelle') {
-        msg += `🇺🇸 *Datos Zelle*\n✉️ ${acc.email}\n👤 ${acc.holder}`;
+        msg += `*Datos Zelle*\nEmail: ${acc.email}\nTitular: ${acc.holder}`;
     } else if (acc.type === 'binance') {
-        msg += `🟡 *Binance Pay*\n🆔 ${acc.email}\n👤 ${acc.holder || acc.alias}`;
+        msg += `*Binance Pay*\nID/Email: ${acc.email}\nAlias: ${acc.holder || acc.alias}`;
     }
 
-    // 3. Referencia opcional (Lógica estricta solicitada)
-    if (includeRef) {
-        const valTop = calc.safeParse(calc.amountTop);
-        const valBot = calc.safeParse(calc.amountBot);
+    // 3. Cálculo de montos para el bloque final
+    const valTop = calc.safeParse(calc.amountTop);
+    const valBot = calc.safeParse(calc.amountBot);
+    
+    let amountBs = 0;
+    let amountUsd = 0;
+
+    // Determinar montos base
+    if (calc.from === 'VES') { amountBs = valTop; amountUsd = valBot; }
+    else if (calc.to === 'VES') { amountBs = valBot; amountUsd = valTop; }
+    else { 
+        amountUsd = (calc.from === 'USD' || calc.from === 'USDT') ? valTop : valBot;
+        amountBs = amountUsd * rates.bcv.price; 
+    }
+
+    // 4. Construcción del Bloque de Monto y Referencia
+    if (acc.type === 'pago_movil' || acc.type === 'transferencia') {
+        // MONTO EN BOLÍVARES
+        msg += `\n\n*Monto: ${formatBs(amountBs)} Bs*`;
         
-        // Determinar montos base
-        let amountBs = 0;
-        let amountUsd = 0;
-
-        // Si el usuario calculó en Bs (Top o Bot es VES)
-        if (calc.from === 'VES') { amountBs = valTop; amountUsd = valBot; }
-        else if (calc.to === 'VES') { amountBs = valBot; amountUsd = valTop; }
-        else { 
-            // Caso raro: USD -> EUR. Asumimos el valor en USD como base.
-            amountUsd = (calc.from === 'USD' || calc.from === 'USDT') ? valTop : valBot;
-            // Estimado Bs
-            amountBs = amountUsd * rates.bcv.price; 
-        }
-
-        // --- REGLAS DE REFERENCIA ---
-        if (acc.type === 'pago_movil' || acc.type === 'transferencia') {
-            // Regla: Referencia en Dólares (Siempre BCV)
+        // Referencia opcional (SOLO BCV)
+        if (includeRef) {
             const refUsd = amountBs / rates.bcv.price;
-            msg += `\n\n✅ *Monto: ${formatBs(amountBs)} Bs*\n(Ref: $${formatUsd(refUsd)} @ BCV)`;
-        
-        } else if (acc.type === 'binance') {
-            // Regla: Referencia en Bolívares (Siempre USDT)
+            msg += `\n(Ref: $${formatUsd(refUsd)} @ BCV)`;
+        }
+    
+    } else if (acc.type === 'binance') {
+        msg += `\n\n*Monto: ${formatUsd(amountUsd)} USDT*`;
+        if (includeRef) {
             const refBs = amountUsd * rates.usdt.price;
-            msg += `\n\n✅ *Monto: ${formatUsd(amountUsd)} USDT*\n(Ref: ${formatBs(refBs)} Bs @ Tasa USDT)`;
-        
-        } else if (acc.type === 'zelle') {
-            // Regla: Referencia en Bolívares (Elegible)
+            msg += `\n(Ref: ${formatBs(refBs)} Bs @ Tasa USDT)`;
+        }
+    
+    } else if (acc.type === 'zelle') {
+        msg += `\n\n*Monto: $${formatUsd(amountUsd)}*`;
+        if (includeRef) {
             const usedRate = zelleRateType === 'bcv' ? rates.bcv.price : rates.usdt.price;
             const refBs = amountUsd * usedRate;
-            msg += `\n\n✅ *Monto: $${formatUsd(amountUsd)}*\n(Ref: ${formatBs(refBs)} Bs @ Tasa ${zelleRateType.toUpperCase()})`;
+            msg += `\n(Ref: ${formatBs(refBs)} Bs @ Tasa ${zelleRateType.toUpperCase()})`;
         }
     }
+
+    // 5. Footer Obligatorio
+    msg += `\n\n*Por favor enviar capture del comprobante de pago.*`;
 
     window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
     setIsModalOpen(false); setSelectedAccount(null);
@@ -137,6 +183,14 @@ export default function CalculatorView({ rates, theme }) {
               <h2 className="text-2xl font-black text-slate-800 dark:text-white transition-colors tracking-tight">Calculadora</h2>
               <p className="text-xs text-slate-400 dark:text-slate-500 font-medium font-mono">1 USDT = {new Intl.NumberFormat('es-VE').format(rates.usdt.price)} Bs</p>
           </div>
+          
+          <button 
+            onClick={handleVoiceInput}
+            className={`p-3 rounded-2xl transition-all shadow-lg active:scale-95 ${isListening ? 'bg-red-500 text-white animate-pulse shadow-red-500/30' : 'bg-white dark:bg-slate-800 text-brand-dark dark:text-brand shadow-slate-200/50 dark:shadow-none'}`}
+            title="Dictar monto por voz"
+          >
+            {isListening ? <MicOff size={20} /> : <Mic size={20} />}
+          </button>
       </div>
       
       {/* Tarjeta Principal */}
@@ -211,8 +265,8 @@ export default function CalculatorView({ rates, theme }) {
                 onToggleRef={() => setIncludeRef(!includeRef)}
                 onBack={() => setSelectedAccount(null)}
                 onConfirm={handleShareWhatsApp}
-                rates={rates} // Pasamos rates para calcular en vivo
-                calc={calc}   // Pasamos datos de la calculadora
+                rates={rates} 
+                calc={calc}   
              />
          )}
       </Modal>
@@ -262,46 +316,38 @@ function AccountSelector({ accounts, onSelect }) {
 }
 
 function PaymentSummary({ selectedAccount, includeRef, onToggleRef, onBack, onConfirm, rates, calc }) {
-    const [zelleRate, setZelleRate] = useState('bcv'); // Estado local para el selector de Zelle
+    const [zelleRate, setZelleRate] = useState('bcv');
     const acc = selectedAccount;
     
-    // 1. Obtener valores de la calculadora
+    // Obtener valores de la calculadora
     const valTop = calc.safeParse(calc.amountTop);
     const valBot = calc.safeParse(calc.amountBot);
     
-    // 2. Determinar monto base en Bs y USD según lo que haya escrito el usuario
     let amountBs = 0;
     let amountUsd = 0;
 
-    if (calc.from === 'VES') { amountBs = valTop; amountUsd = valBot; } // Bs arriba
-    else if (calc.to === 'VES') { amountBs = valBot; amountUsd = valTop; } // Bs abajo
+    // Lógica para determinar el monto base
+    if (calc.from === 'VES') { amountBs = valTop; amountUsd = valBot; }
+    else if (calc.to === 'VES') { amountBs = valBot; amountUsd = valTop; }
     else { 
-        // Caso USD -> EUR o similar. Asumimos USD como base y convertimos a Bs referencial.
         amountUsd = (calc.from === 'USD' || calc.from === 'USDT') ? valTop : valBot;
         amountBs = amountUsd * rates.bcv.price; 
     }
 
-    // 3. Lógica de Etiqueta del Toggle (Label)
+    // Texto del Toggle (solo informativo)
     let labelText = '';
-    
     if (acc.type === 'pago_movil' || acc.type === 'transferencia') {
-        // Regla: Referencia SIEMPRE en Dólares (BCV)
         const refUsd = amountBs / rates.bcv.price;
         labelText = `Incluir referencia en Dólares ($${formatUsd(refUsd)})`;
-    
     } else if (acc.type === 'binance') {
-        // Regla: Referencia SIEMPRE en Bolívares (USDT)
         const refBs = amountUsd * rates.usdt.price;
         labelText = `Incluir referencia en Bolívares (${formatBs(refBs)} Bs)`;
-    
     } else if (acc.type === 'zelle') {
-        // Regla: Referencia en Bolívares (Calculada según selección)
         const usedRate = zelleRate === 'bcv' ? rates.bcv.price : rates.usdt.price;
         const refBs = amountUsd * usedRate;
         labelText = `Incluir referencia en Bolívares (${formatBs(refBs)} Bs)`;
     }
 
-    // Iconos
     const getIcon = (t) => {
         if(t === 'pago_movil') return <Smartphone size={18} className="text-emerald-500"/>;
         if(t === 'binance') return <Bitcoin size={18} className="text-amber-500"/>;
@@ -312,7 +358,6 @@ function PaymentSummary({ selectedAccount, includeRef, onToggleRef, onBack, onCo
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
             
-            {/* ZELLE: Selector de Tasa (Solo aparece si es Zelle) */}
             {acc.type === 'zelle' && (
                 <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl mb-2">
                     <button 
@@ -330,7 +375,6 @@ function PaymentSummary({ selectedAccount, includeRef, onToggleRef, onBack, onCo
                 </div>
             )}
 
-            {/* Toggle con Texto Dinámico */}
             <div className="bg-slate-100 dark:bg-slate-800 rounded-3xl p-4 border border-slate-200 dark:border-slate-700 flex items-center justify-between">
                 <span className="text-xs font-bold text-slate-600 dark:text-slate-300 ml-1 leading-tight max-w-[70%]">
                     {includeRef ? labelText : "Solo enviar datos de cuenta"}
@@ -357,7 +401,7 @@ function PaymentSummary({ selectedAccount, includeRef, onToggleRef, onBack, onCo
                     <ArrowLeft size={20} />
                 </button>
                 <button 
-                    onClick={() => onConfirm(zelleRate)} // Enviamos la tasa Zelle elegida
+                    onClick={() => onConfirm(zelleRate)} 
                     className="flex-1 bg-brand hover:bg-brand-dark text-slate-900 rounded-2xl font-black text-sm uppercase tracking-wider shadow-lg shadow-brand/20 transition-all active:scale-95 py-4 flex items-center justify-center gap-2"
                 >
                     <WhatsAppIcon size={20} /> ENVIAR AL CLIENTE
@@ -367,7 +411,6 @@ function PaymentSummary({ selectedAccount, includeRef, onToggleRef, onBack, onCo
     );
 }
 
-// Helpers Visuales Locales
 const getVisualEquivalent = (calc) => {
     if (!calc.amountBot || calc.to === 'VES') return null;
     const rateTo = calc.currencies.find(c => c.id === calc.to)?.rate || 0;

@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { RefreshCw, Sun, Moon, TrendingUp, TrendingDown, WifiOff, Clock, Bell, BellRing } from 'lucide-react';
+import { RefreshCw, Sun, Moon, TrendingUp, TrendingDown, WifiOff, Clock, Bell, BellRing, Maximize, Minimize } from 'lucide-react';
 
 export default function MonitorView({ rates, loading, isOffline, onRefresh, toggleTheme, theme, copyLogs, enableNotifications, notificationsEnabled }) {
   
   const [secretCount, setSecretCount] = useState(0);
+  const [kioskMode, setKioskMode] = useState(false);
 
   const handleSecretDebug = () => {
     const newCount = secretCount + 1;
@@ -19,6 +20,13 @@ export default function MonitorView({ rates, loading, isOffline, onRefresh, togg
     return new Intl.NumberFormat('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(amount);
   };
 
+  // Cálculo de Brecha Cambiaria (Spread)
+  // Fórmula: ((Paralelo - BCV) / BCV) * 100
+  const spread = rates.bcv.price > 0 ? ((rates.usdt.price - rates.bcv.price) / rates.bcv.price) * 100 : 0;
+  
+  // Cálculo de la Diferencia en Bs (Resta simple)
+  const diffBs = rates.usdt.price - rates.bcv.price;
+
   const renderChange = (change) => {
     if (!change || change === 0) return null;
     const isPositive = change > 0;
@@ -29,6 +37,39 @@ export default function MonitorView({ rates, loading, isOffline, onRefresh, togg
       </span>
     );
   };
+
+  // --- VISTA KIOSCO (WIDGET PANTALLA COMPLETA) ---
+  if (kioskMode) {
+      return (
+        <div className="fixed inset-0 z-[100] bg-slate-950 text-white flex flex-col justify-center items-center p-6 animate-in zoom-in duration-300">
+            <button 
+                onClick={() => setKioskMode(false)} 
+                className="absolute top-6 right-6 p-4 bg-white/10 rounded-full text-white/50 hover:text-white transition-colors"
+            >
+                <Minimize size={24}/>
+            </button>
+
+            <div className="flex flex-col items-center justify-center space-y-4 mb-16 scale-110">
+                <p className="text-2xl font-bold text-slate-400 uppercase tracking-[0.2em] animate-pulse">Tasa Monitor</p>
+                <h1 className="text-[6.5rem] sm:text-[8rem] font-black font-mono leading-none tracking-tighter text-brand drop-shadow-2xl">
+                    {formatVES(rates.usdt.price)}
+                </h1>
+                <p className="text-xl text-slate-500 font-mono font-medium">1 USDT = {formatVES(rates.usdt.price)} Bs</p>
+            </div>
+
+            <div className="flex gap-12 opacity-60">
+                <div className="text-center">
+                    <p className="text-sm font-bold uppercase text-slate-500 tracking-wider mb-1">BCV OFICIAL</p>
+                    <p className="text-3xl font-mono font-bold">{formatVES(rates.bcv.price)}</p>
+                </div>
+                <div className="text-center">
+                    <p className="text-sm font-bold uppercase text-slate-500 tracking-wider mb-1">EURO BCV</p>
+                    <p className="text-3xl font-mono font-bold">{formatVES(rates.euro.price)}</p>
+                </div>
+            </div>
+        </div>
+      );
+  }
 
   // --- SKELETON LOADING ---
   if (loading && (!rates || !rates.usdt || rates.usdt.price === 0)) {
@@ -55,7 +96,6 @@ export default function MonitorView({ rates, loading, isOffline, onRefresh, togg
       
       {/* --- HEADER --- */}
       <header className="flex items-center justify-between pt-6 pb-2 px-3">
-        {/* LOGO IZQUIERDA */}
         <button 
             onClick={handleSecretDebug} 
             className="flex flex-col items-start gap-1 active:scale-95 transition-transform outline-none"
@@ -67,13 +107,20 @@ export default function MonitorView({ rates, loading, isOffline, onRefresh, togg
             />
             <div className="bg-slate-100 dark:bg-slate-800/50 px-2 py-0.5 rounded-md border border-slate-200/50 dark:border-slate-700/50 backdrop-blur-sm ml-1">
                 <p className="text-[8px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.15em] leading-none">
-                    ACTUALIZADO DONDE VAYAS
+                    V3.0 FÉNIX
                 </p>
             </div>
         </button>
 
-        {/* BOTONES DERECHA */}
         <div className="flex items-center gap-2">
+            <button 
+                onClick={() => setKioskMode(true)} 
+                className="p-2.5 rounded-2xl bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 text-slate-400 hover:text-brand-dark dark:hover:text-brand transition-all shadow-sm active:scale-95"
+                title="Modo Pantalla Completa"
+            >
+                <Maximize size={18} strokeWidth={2} />
+            </button>
+            
             <button 
                 onClick={enableNotifications} 
                 disabled={notificationsEnabled}
@@ -82,7 +129,6 @@ export default function MonitorView({ rates, loading, isOffline, onRefresh, togg
                         ? 'bg-emerald-50 border-emerald-100 text-emerald-600 dark:bg-emerald-900/20 dark:border-emerald-900/30 dark:text-emerald-400 cursor-default' 
                         : 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700 text-slate-400 dark:text-slate-400 hover:text-brand-dark'
                     }`}
-                title={notificationsEnabled ? "Notificaciones Activas" : "Activar Alertas"}
             >
                 {notificationsEnabled ? <BellRing size={18} strokeWidth={2.5} /> : <Bell size={18} strokeWidth={2} />}
             </button>
@@ -134,19 +180,20 @@ export default function MonitorView({ rates, loading, isOffline, onRefresh, togg
                      <span className="text-xl font-bold text-slate-400 ml-2">Bs</span>
                  </div>
 
-                 <div className="flex items-center gap-2 pt-4 border-t border-slate-50 dark:border-slate-800">
-                    <div className="px-2 py-1 rounded-md bg-slate-100 dark:bg-slate-800 text-[10px] font-bold uppercase tracking-wider text-slate-500">Fuente</div>
-                    <span className="text-xs font-medium text-slate-600 dark:text-slate-400 truncate">
-                        {rates.usdt.source} (Promedio Global)
+                 {/* ✅ ETIQUETA CORREGIDA PARA EVITAR CONFUSIÓN */}
+                 <div className="flex items-center gap-3 pt-4 border-t border-slate-50 dark:border-slate-800">
+                    <div className={`px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider ${spread > 10 ? 'bg-rose-50 text-rose-600 dark:bg-rose-900/20' : 'bg-slate-100 text-slate-500 dark:bg-slate-800'}`}>
+                        Brecha: {spread.toFixed(2)}%
+                    </div>
+                    <span className="text-xs font-medium text-slate-400 dark:text-slate-500 truncate">
+                         Diferencia: {formatVES(diffBs)} Bs
                     </span>
                  </div>
              </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-              {/* ✅ AHORA LAS TARJETAS MUESTRAN EL CAMBIO */}
               <RateCardMini title="Dolar BCV Oficial" price={rates.bcv.price} change={rates.bcv.change} icon="🏛️" formatVES={formatVES} renderChange={renderChange} />
-              
               <RateCardMini title="Euro BCV Oficial" price={rates.euro.price} change={rates.euro.change} icon="🇪🇺" formatVES={formatVES} renderChange={renderChange} />
           </div>
       </div>
@@ -163,13 +210,11 @@ export default function MonitorView({ rates, loading, isOffline, onRefresh, togg
   );
 }
 
-// ✅ COMPONENTE ACTUALIZADO
 function RateCardMini({ title, price, change, icon, formatVES, renderChange }) {
     return (
         <div className="bg-white dark:bg-slate-900 p-5 rounded-[1.5rem] border border-slate-100 dark:border-slate-800 shadow-sm hover:shadow-md transition-all hover:-translate-y-1 duration-300">
             <div className="flex justify-between items-start mb-4">
                 <span className="text-xl filter grayscale opacity-80">{icon}</span>
-                {/* AQUI SE MUESTRA EL PORCENTAJE (Si es 0 no muestra nada) */}
                 {change !== 0 ? renderChange(change) : <div className="h-5"></div>}
             </div>
             <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">{title}</span>
