@@ -5,7 +5,7 @@ import html2canvas from 'html2canvas';
 // Hooks y Componentes
 import { useWallet } from '../hooks/useWallet'; 
 import { Modal } from '../components/Modal';   
-import { CalculatorInput } from '../components/CalculatorInput'; 
+import CalculatorInput from '../components/CalculatorInput'; // Asegúrate que la ruta sea correcta
 
 export default function CalculatorView({ rates, theme }) {
   const [copied, setCopied] = useState(false);
@@ -32,7 +32,7 @@ export default function CalculatorView({ rates, theme }) {
   ];
 
   // --- HELPERS FORMATO ---
-  const formatBs = (val) => new Intl.NumberFormat('es-VE', { maximumFractionDigits: 0 }).format(Math.ceil(val));
+  const formatBs = (val) => new Intl.NumberFormat('es-VE', { maximumFractionDigits: 2 }).format(val);
   const formatUsd = (val) => new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(val);
   const safeParse = (val) => (!val || val === '.') ? 0 : parseFloat(val.replace(/,/g, '.'));
 
@@ -55,18 +55,25 @@ export default function CalculatorView({ rates, theme }) {
 
   // --- HANDLERS CALCULADORA ---
   const handleAmountChange = (val, setSelf, source) => {
-    if (/^\d*\.?\d{0,2}$/.test(val.replace(/,/g, '.'))) { setSelf(val); setLastEdited(source); }
+    // Permitir solo números y punto decimal
+    if (/^\d*\.?\d{0,2}$/.test(val.replace(/,/g, '.'))) { 
+        setSelf(val); 
+        setLastEdited(source); 
+    }
   };
   const handleCurrencyChange = (val, setCurrency) => { setCurrency(val); setLastEdited('top'); };
   const handleSwap = () => { setFrom(to); setTo(from); setAmountTop(amountBot); setLastEdited('top'); };
   const handleQuickAdd = (val) => {
-      const current = safeParse(amountTop); setAmountTop((current + val).toFixed(0)); setLastEdited('top');
+      const current = safeParse(amountTop); 
+      setAmountTop((current + val).toFixed(0)); 
+      setLastEdited('top');
   };
 
   // --- HELPERS VISUALES ---
   const getVisualEquivalent = () => {
       if (!amountBot || to === 'VES') return null;
       const rateTo = currencies.find(c => c.id === to)?.rate || 0;
+      // Muestra cuánto son esos X dólares/euros en Bs
       return formatBs(safeParse(amountBot) * rateTo); 
   };
 
@@ -75,16 +82,20 @@ export default function CalculatorView({ rates, theme }) {
     const date = new Date().toLocaleDateString('es-VE', { day: '2-digit', month: '2-digit' });
     const cFrom = currencies.find(c => c.id === from);
     const cTo = currencies.find(c => c.id === to);
+    
+    // Formato condicional según moneda
     const fmtTop = cFrom.id === 'VES' ? formatBs(safeParse(amountTop)) : formatUsd(safeParse(amountTop));
     const fmtBot = cTo.id === 'VES' ? formatBs(safeParse(amountBot)) : formatUsd(safeParse(amountBot));
+    
     const eq = getVisualEquivalent();
     const extra = eq ? `\n(≈ ${eq} Bs)` : '';
     const text = `💰 *Cambio al día (${date})*\n\n${cFrom.icon} ${fmtTop} ${cFrom.label}\n⬇️\n${cTo.icon} *${fmtBot} ${cTo.label}*${extra}`;
+    
     navigator.clipboard.writeText(text);
     setCopied(true); setTimeout(() => setCopied(false), 2000);
   };
 
-  // --- LÓGICA DE COBRO ---
+  // --- LÓGICA DE COBRO (Igual que antes) ---
   const handleAccountSelect = (acc) => {
       setSelectedAccount(acc);
       setIncludeRef(true); 
@@ -141,74 +152,114 @@ export default function CalculatorView({ rates, theme }) {
 
   const handleShareImage = async () => { 
     if (captureRef.current) {
-        const canvas = await html2canvas(captureRef.current, { backgroundColor: theme === 'dark' ? '#0f172a' : '#ffffff', scale: 2, logging: false, useCORS: true });
-        const link = document.createElement('a'); link.href = canvas.toDataURL("image/png"); link.download = `Calculo.png`; link.click();
+        try {
+            const canvas = await html2canvas(captureRef.current, { 
+                backgroundColor: theme === 'dark' ? '#0f172a' : '#ffffff', 
+                scale: 2, 
+                logging: false, 
+                useCORS: true 
+            });
+            const link = document.createElement('a'); 
+            link.href = canvas.toDataURL("image/png"); 
+            link.download = `Calculo.png`; 
+            link.click();
+        } catch (error) {
+            console.error("Error al generar imagen", error);
+        }
     }
   };
 
   const getIcon = (t) => t === 'pago_movil' ? <Smartphone size={18} className="text-emerald-500"/> : t === 'binance' ? <Bitcoin size={18} className="text-amber-500"/> : <Building2 size={18} className="text-blue-500"/>;
 
   return (
-    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300 pb-20">
       
       {/* Header */}
-      <div className="px-1">
-          <h2 className="text-2xl font-black text-slate-800 dark:text-white transition-colors tracking-tight">Calculadora</h2>
-          <p className="text-xs text-slate-400 dark:text-slate-500 font-medium font-mono">1 USDT = {new Intl.NumberFormat('es-VE').format(rates.usdt.price)} Bs</p>
+      <div className="px-1 flex justify-between items-end">
+          <div>
+              <h2 className="text-2xl font-black text-slate-800 dark:text-white transition-colors tracking-tight">Calculadora</h2>
+              <p className="text-xs text-slate-400 dark:text-slate-500 font-medium font-mono">1 USDT = {new Intl.NumberFormat('es-VE').format(rates.usdt.price)} Bs</p>
+          </div>
       </div>
       
       {/* Tarjeta Principal */}
       <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] p-6 shadow-xl shadow-slate-200/50 dark:shadow-none border border-slate-100 dark:border-slate-800 transition-colors duration-300">
-          <div ref={captureRef} className="bg-white dark:bg-slate-900 p-1 rounded-xl"> 
+          
+          {/* Área capturable para imagen */}
+          <div ref={captureRef} className="bg-white dark:bg-slate-900 p-2 rounded-xl"> 
+              
+              {/* INPUT SUPERIOR */}
               <CalculatorInput 
-                label="Tengo" amount={amountTop} currency={from} currencies={currencies}
-                onAmountChange={(e) => handleAmountChange(e.target.value, setAmountTop, 'top')}
-                onCurrencyChange={(e) => handleCurrencyChange(e.target.value, setFrom)}
+                label="Tengo" 
+                amount={amountTop} 
+                currency={from} 
+                currencies={currencies}
+                onAmountChange={(val) => handleAmountChange(val, setAmountTop, 'top')}
+                onCurrencyChange={(val) => handleCurrencyChange(val, setFrom)}
                 onClear={() => { setAmountTop(''); setAmountBot(''); }}
               />
-              <div className="flex justify-center -my-3 relative z-10">
-                  <button onClick={handleSwap} className="bg-white dark:bg-slate-800 border-4 border-white dark:border-slate-900 p-2 rounded-full shadow-lg text-slate-400 hover:text-brand-dark dark:text-slate-400 dark:hover:text-brand transition-all active:scale-90 active:rotate-180 duration-300">
-                      <ArrowRightLeft size={16} strokeWidth={3} />
+              
+              {/* BOTÓN SWAP */}
+              <div className="flex justify-center -my-3 relative z-20">
+                  <button onClick={handleSwap} className="bg-white dark:bg-slate-800 border-4 border-white dark:border-slate-900 p-2 rounded-full shadow-lg text-brand hover:text-brand-dark dark:text-brand dark:hover:text-white transition-all active:scale-90 active:rotate-180 duration-300">
+                      <ArrowRightLeft size={20} strokeWidth={3} />
                   </button>
               </div>
+              
+              {/* INPUT INFERIOR */}
               <CalculatorInput 
-                label="Recibo / Equivalente" amount={amountBot} currency={to} currencies={currencies}
-                onAmountChange={(e) => handleAmountChange(e.target.value, setAmountBot, 'bot')}
-                onCurrencyChange={(e) => handleCurrencyChange(e.target.value, setTo)}
+                label="Recibo / Equivalente" 
+                amount={amountBot} 
+                currency={to} 
+                currencies={currencies}
+                onAmountChange={(val) => handleAmountChange(val, setAmountBot, 'bot')}
+                onCurrencyChange={(val) => handleCurrencyChange(val, setTo)}
                 onClear={() => { setAmountBot(''); setAmountTop(''); }}
               >
+                  {/* Equivalencia visual extra (ej: 100 USDT = tantos Bs) */}
                   {getVisualEquivalent() && (
-                      <div className="flex justify-end animate-in fade-in slide-in-from-top-1 px-1">
-                          <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-800/80 px-3 py-1.5 rounded-lg border border-slate-100 dark:border-slate-700 shadow-sm">
+                      <div className="flex justify-end animate-in fade-in slide-in-from-top-1 px-1 mt-1">
+                          <div className="flex items-center gap-2 px-2 py-1 rounded-lg opacity-60">
                               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Son:</span>
-                              <span className="text-sm font-mono font-bold text-slate-600 dark:text-slate-300">
-                                  {getVisualEquivalent()} <span className="text-[10px] text-slate-400">Bs</span>
+                              <span className="text-xs font-mono font-bold text-slate-600 dark:text-slate-300">
+                                  {getVisualEquivalent()} <span className="text-[10px]">Bs</span>
                               </span>
                           </div>
                       </div>
                   )}
               </CalculatorInput>
+
+              {/* ACCESOS RÁPIDOS */}
               <div className="flex gap-2 mt-6 justify-center flex-wrap">
                   {[5, 10, 20, 50, 100].map(val => (
-                      <button key={val} onClick={() => handleQuickAdd(val)} className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 px-4 py-2 rounded-xl text-sm font-bold font-mono hover:bg-brand hover:text-slate-900 dark:hover:bg-brand dark:hover:text-slate-900 transition-all active:scale-95 shadow-sm border border-slate-200 dark:border-slate-700">+{val}</button>
+                      <button 
+                        key={val} 
+                        onClick={() => handleQuickAdd(val)} 
+                        className="bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 px-4 py-2.5 rounded-xl text-sm font-bold font-mono hover:bg-brand hover:text-slate-900 dark:hover:bg-brand dark:hover:text-slate-900 transition-all active:scale-95 border border-slate-200 dark:border-slate-700"
+                      >
+                        +{val}
+                      </button>
                   ))}
               </div>
           </div>
 
+          {/* BOTONES DE ACCIÓN */}
           <div className="mt-6 flex gap-3 justify-center">
+              {/* Copiar */}
               <button onClick={copyToClipboard} className="flex-none flex items-center justify-center gap-2 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 px-5 py-3.5 rounded-2xl text-xs font-bold transition-all active:scale-95 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700">
-                  {copied ? <Check size={20}/> : <Copy size={20}/>}
+                  {copied ? <Check size={20} className="text-emerald-500"/> : <Copy size={20}/>}
               </button>
               
-              {/* BOTÓN COBRAR CON LOGO WHATSAPP */}
+              {/* COBRAR POR WHATSAPP */}
               <button 
                 onClick={() => { setSelectedAccount(null); setIsModalOpen(true); }} 
                 disabled={!amountTop}
                 className="flex-1 flex items-center justify-center gap-2 bg-brand hover:bg-brand-dark text-slate-900 px-4 py-3.5 rounded-2xl text-xs font-black uppercase tracking-wider transition-all active:scale-95 shadow-lg shadow-brand/20 active:shadow-none disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                  <WhatsAppIcon size={20} /> COBRAR POR WHATSAPP
+                  <WhatsAppIcon size={20} /> COBRAR
               </button>
 
+              {/* Captura Imagen */}
               <button onClick={handleShareImage} className="flex-none flex items-center justify-center gap-2 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 px-5 py-3.5 rounded-2xl text-xs font-bold transition-all active:scale-95 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700">
                   <Camera size={20}/>
               </button>

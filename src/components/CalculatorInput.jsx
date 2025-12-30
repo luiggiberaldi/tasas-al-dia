@@ -1,68 +1,88 @@
 import React from 'react';
 import { ChevronDown, X } from 'lucide-react';
 
-export const CalculatorInput = ({ 
-  label,           // "Tengo" o "Recibo"
-  amount,          // El valor numérico
-  currency,        // Moneda seleccionada (ID)
-  currencies,      // Lista de monedas disponibles
-  onAmountChange,  // Función al escribir número
-  onCurrencyChange,// Función al cambiar moneda
-  onClear,         // Función para borrar (X)
-  isReadOnly,      // Si es el campo calculado (opcional, por si quieres estilos diferentes)
-  children         // Para inyectar elementos extra (como la equivalencia visual)
-}) => {
+export default function CalculatorInput({ 
+  label, 
+  amount, 
+  currency, 
+  onAmountChange, 
+  onCurrencyChange, 
+  readOnly = false,
+  currencies = [], 
+  onClear,
+  children 
+}) {
+  // Buscar el objeto de la moneda actual para mostrar su icono correcto
+  const currentCurrencyData = currencies.find(c => c.id === currency) || { icon: '💰', label: currency };
+
   return (
-    <div className="relative mb-2 group">
-      <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-2 mb-1 block">
+    <div className="flex flex-col gap-2 relative z-10">
+      {/* Etiqueta superior (Tengo / Recibo) */}
+      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider ml-1">
         {label}
-      </label>
-      
-      <div className="flex flex-col gap-2">
-        <div className="flex gap-2 h-[4.5rem]"> {/* Altura fija para evitar saltos */}
-          
-          {/* SELECTOR DE MONEDA */}
-          <div className="relative w-[110px] shrink-0 h-full">
+      </span>
+
+      {/* Contenedor Principal (Tarjeta) */}
+      <div className="bg-slate-100 dark:bg-slate-800 rounded-2xl p-4 flex items-center justify-between border border-slate-200 dark:border-slate-700 focus-within:border-brand/50 focus-within:ring-2 focus-within:ring-brand/20 transition-all duration-300 relative">
+        
+        {/* LADO IZQUIERDO: Selector de Moneda */}
+        <div className="flex items-center gap-2 shrink-0 relative group cursor-pointer p-1.5 rounded-xl hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
+            {/* Input Select "Fantasma" para funcionalidad nativa en móviles */}
             <select 
-              value={currency} 
-              onChange={onCurrencyChange} 
-              className="w-full h-full bg-slate-50 dark:bg-slate-950 rounded-2xl appearance-none font-bold text-slate-700 dark:text-slate-200 px-4 focus:outline-none text-sm border border-transparent focus:border-slate-200 dark:focus:border-slate-700 dark:border-slate-800 cursor-pointer transition-colors truncate pr-6"
+                value={currency}
+                onChange={(e) => onCurrencyChange && onCurrencyChange(e.target.value)}
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
+                disabled={!onCurrencyChange}
             >
-              {currencies.map(c => (
-                <option key={c.id} value={c.id} className="dark:bg-slate-900">
-                  {c.icon} {c.label}
-                </option>
-              ))}
+                {currencies.map(c => (
+                    <option key={c.id} value={c.id}>{c.label}</option>
+                ))}
             </select>
-            <ChevronDown size={14} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"/>
-          </div>
-          
-          {/* INPUT NUMÉRICO */}
-          <div className="relative flex-1 min-w-0 h-full">
-            <input 
-              type="text" 
-              inputMode="decimal" 
-              value={amount} 
-              onChange={onAmountChange} 
-              placeholder="0" 
-              className="w-full h-full bg-slate-50 dark:bg-slate-950 text-3xl font-bold font-mono text-slate-800 dark:text-white p-4 pl-4 rounded-2xl outline-none focus:ring-2 focus:ring-brand transition-all text-right placeholder:text-slate-300 dark:placeholder:text-slate-700 dark:border dark:border-slate-800"
-            />
-            
-            {/* Botón Borrar (Solo si hay monto) */}
-            {amount && (
-              <button 
-                onClick={onClear} 
-                className="absolute left-3 top-1/2 -translate-y-1/2 p-1.5 bg-slate-200/50 dark:bg-slate-800/50 rounded-full text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all z-10"
-              >
-                <X size={14} strokeWidth={3} />
-              </button>
-            )}
-          </div>
+
+            {/* Visual del Selector */}
+            <div className="w-8 h-8 rounded-full bg-white dark:bg-slate-700 flex items-center justify-center overflow-hidden border border-slate-200 dark:border-slate-600 shadow-sm text-lg">
+                {currentCurrencyData.icon}
+            </div>
+            <div className="flex flex-col leading-none">
+                <span className="font-bold text-slate-700 dark:text-white text-sm tracking-wide flex items-center gap-1">
+                    {currentCurrencyData.id} <ChevronDown size={12} className="opacity-50"/>
+                </span>
+                <span className="text-[10px] text-slate-400 font-mono">{currentCurrencyData.label}</span>
+            </div>
         </div>
 
-        {/* Slot para contenido extra (Equivalencia) */}
-        {children}
+        {/* LADO DERECHO: Input Numérico */}
+        <div className="flex-1 flex flex-col items-end relative min-w-0 ml-2">
+            <div className="flex items-center w-full justify-end">
+                <input
+                    type="text"
+                    inputMode="decimal" // Teclado numérico en móviles
+                    value={amount}
+                    onChange={(e) => onAmountChange && onAmountChange(e.target.value)}
+                    placeholder="0"
+                    readOnly={readOnly}
+                    className={`
+                        w-full bg-transparent border-none outline-none 
+                        text-right font-mono font-bold text-3xl sm:text-4xl
+                        placeholder-slate-300 dark:placeholder-slate-600
+                        ${readOnly ? 'text-slate-500 dark:text-slate-400' : 'text-slate-800 dark:text-white'}
+                    `}
+                />
+                
+                {/* Botón de Borrar (X) */}
+                {!readOnly && amount && amount !== '' && (
+                    <button 
+                        onClick={onClear}
+                        className="ml-2 p-1 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-500 hover:text-rose-500 transition-colors animate-in zoom-in duration-200 shrink-0"
+                    >
+                        <X size={14} strokeWidth={3} />
+                    </button>
+                )}
+            </div>
+            {/* Espacio para hijos (ej: equivalencia en gris pequeño) */}
+            {children}
+        </div>
       </div>
     </div>
   );
-};
+}
