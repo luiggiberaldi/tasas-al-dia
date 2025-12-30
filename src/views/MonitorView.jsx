@@ -1,7 +1,19 @@
-import React from 'react';
-import { RefreshCw, Sun, Moon, TrendingUp, TrendingDown, WifiOff, Clock } from 'lucide-react';
+import React, { useState } from 'react';
+import { RefreshCw, Sun, Moon, TrendingUp, TrendingDown, WifiOff, Clock, Bell, BellRing } from 'lucide-react';
 
-export default function MonitorView({ rates, loading, isOffline, onRefresh, lastLog, toggleTheme, theme }) {
+export default function MonitorView({ rates, loading, isOffline, onRefresh, toggleTheme, theme, copyLogs, enableNotifications, notificationsEnabled }) {
+  
+  const [secretCount, setSecretCount] = useState(0);
+
+  const handleSecretDebug = () => {
+    const newCount = secretCount + 1;
+    setSecretCount(newCount);
+    if (newCount === 7) {
+        copyLogs();
+        setSecretCount(0);
+    }
+    if (newCount === 1) setTimeout(() => setSecretCount(0), 2000);
+  };
   
   const formatVES = (amount) => {
     return new Intl.NumberFormat('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(amount);
@@ -22,6 +34,7 @@ export default function MonitorView({ rates, loading, isOffline, onRefresh, last
   if (loading && (!rates || !rates.usdt || rates.usdt.price === 0)) {
     return (
         <div className="space-y-8 pt-6 px-1 animate-pulse">
+            {/* ... (Tu skeleton anterior se mantiene igual) ... */}
             <div className="flex justify-between items-center mb-8 px-2">
                 <div className="h-10 w-32 bg-slate-200 dark:bg-slate-800 rounded-xl"></div>
                 <div className="flex gap-2">
@@ -41,15 +54,16 @@ export default function MonitorView({ rates, loading, isOffline, onRefresh, last
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-500">
       
-      {/* --- HEADER IZQUIERDO --- */}
+      {/* --- HEADER --- */}
       <header className="flex items-center justify-between pt-6 pb-2 px-3">
-        
-        {/* IZQUIERDA: LOGO 54PX + SLOGAN */}
-        <div className="flex flex-col items-start gap-1">
+        {/* LOGO IZQUIERDA (BOTÓN SECRETO) */}
+        <button 
+            onClick={handleSecretDebug} 
+            className="flex flex-col items-start gap-1 active:scale-95 transition-transform outline-none"
+        >
             <img 
                 src={theme === 'dark' ? '/logodark.png' : '/logoprincipal.png'} 
                 alt="TasasAlDía" 
-                // Ajuste exacto a 54px usando valor arbitrario de Tailwind
                 className="h-[54px] w-auto object-contain animate-in fade-in slide-in-from-left-2 duration-500 drop-shadow-sm" 
             />
             <div className="bg-slate-100 dark:bg-slate-800/50 px-2 py-0.5 rounded-md border border-slate-200/50 dark:border-slate-700/50 backdrop-blur-sm ml-1">
@@ -57,10 +71,24 @@ export default function MonitorView({ rates, loading, isOffline, onRefresh, last
                     Toma el control
                 </p>
             </div>
-        </div>
+        </button>
 
-        {/* DERECHA: BOTONES */}
+        {/* BOTONES DERECHA */}
         <div className="flex items-center gap-2">
+            {/* BOTÓN NOTIFICACIONES */}
+            <button 
+                onClick={enableNotifications} 
+                disabled={notificationsEnabled}
+                className={`p-2.5 rounded-2xl border transition-all active:scale-95 shadow-sm 
+                    ${notificationsEnabled 
+                        ? 'bg-emerald-50 border-emerald-100 text-emerald-600 dark:bg-emerald-900/20 dark:border-emerald-900/30 dark:text-emerald-400 cursor-default' 
+                        : 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700 text-slate-400 dark:text-slate-400 hover:text-brand-dark'
+                    }`}
+                title={notificationsEnabled ? "Notificaciones Activas" : "Activar Alertas"}
+            >
+                {notificationsEnabled ? <BellRing size={18} strokeWidth={2.5} /> : <Bell size={18} strokeWidth={2} />}
+            </button>
+
             <button onClick={toggleTheme} className="p-2.5 rounded-2xl bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 text-slate-400 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700 hover:text-brand-dark dark:hover:text-brand transition-all active:scale-95 shadow-sm">
                 {theme === 'dark' ? <Sun size={18} strokeWidth={2} /> : <Moon size={18} strokeWidth={2} />}
             </button>
@@ -80,16 +108,19 @@ export default function MonitorView({ rates, loading, isOffline, onRefresh, last
 
       {/* Grid Principal */}
       <div className="grid gap-6">
-          {/* Tarjeta Hero (Tasa USDT) */}
+          {/* Tarjeta Hero (Tasa USDT UNIFICADA) */}
           <div className="relative group">
              <div className="absolute -inset-0.5 bg-gradient-to-r from-brand/30 to-purple-500/30 rounded-[2.2rem] blur opacity-20 group-hover:opacity-40 transition duration-500"></div>
              <div className="relative bg-white dark:bg-slate-900 rounded-[2rem] p-7 shadow-2xl shadow-slate-200/50 dark:shadow-none border border-slate-100 dark:border-slate-800 overflow-hidden">
+                 
                  <div className="absolute top-0 right-0 p-8 opacity-[0.03] dark:opacity-[0.02] transform rotate-12 pointer-events-none">
                     <TrendingUp size={140} />
                  </div>
+
+                 {/* Header */}
                  <div className="flex justify-between items-start mb-6">
                     <div className="flex flex-col gap-1">
-                        <span className="text-sm font-medium text-slate-400 dark:text-slate-500">Precio Actual</span>
+                        <span className="text-sm font-medium text-slate-400 dark:text-slate-500">Promedio P2P</span>
                         <h2 className="text-xl font-black text-slate-800 dark:text-white tracking-tight flex items-center gap-2">
                             Tasa USDT
                             {rates.usdt.type === 'p2p' && <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>}
@@ -97,6 +128,8 @@ export default function MonitorView({ rates, loading, isOffline, onRefresh, last
                     </div>
                     {renderChange(rates.usdt.change)}
                  </div>
+
+                 {/* Precio Principal Unificado */}
                  <div className="flex items-baseline gap-1 mb-6">
                      <span className="text-2xl text-slate-300 dark:text-slate-600 font-bold font-sans transform -translate-y-4">$</span>
                      <div className="text-[4rem] leading-none font-black text-slate-900 dark:text-white tracking-tighter font-mono">
@@ -105,16 +138,21 @@ export default function MonitorView({ rates, loading, isOffline, onRefresh, last
                      </div>
                      <span className="text-xl font-bold text-slate-400 ml-2">Bs</span>
                  </div>
+
+                 {/* Fuente */}
                  <div className="flex items-center gap-2 pt-4 border-t border-slate-50 dark:border-slate-800">
                     <div className="px-2 py-1 rounded-md bg-slate-100 dark:bg-slate-800 text-[10px] font-bold uppercase tracking-wider text-slate-500">Fuente</div>
-                    <span className="text-xs font-medium text-slate-600 dark:text-slate-400 truncate">{rates.usdt.source}</span>
+                    <span className="text-xs font-medium text-slate-600 dark:text-slate-400 truncate">
+                        {rates.usdt.source} (Promedio Global)
+                    </span>
                  </div>
              </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
               <RateCardMini title="Dolar BCV Oficial" price={rates.bcv.price} change={rates.bcv.change} icon="🏛️" formatVES={formatVES} renderChange={renderChange} />
-              <RateCardMini title="Euro BCV" price={rates.euro.price} change={rates.euro.change} icon="🇪🇺" formatVES={formatVES} renderChange={renderChange} />
+              
+              <RateCardMini title="Euro BCV Oficial" price={rates.euro.price} change={rates.euro.change} icon="🇪🇺" formatVES={formatVES} renderChange={renderChange} />
           </div>
       </div>
       

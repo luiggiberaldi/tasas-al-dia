@@ -8,8 +8,12 @@ const DEFAULT_RATES = {
 };
 
 // --- CONFIGURACIÓN ---
-const EXCHANGERATE_KEY = 'F1a3af26247a97a33ee5ad90'; // Tu Clave Premium
-const DEFAULT_EUR_USD_RATIO = 1.18; // Respaldo final si todo falla
+const EXCHANGERATE_KEY = 'F1a3af26247a97a33ee5ad90'; 
+const DEFAULT_EUR_USD_RATIO = 1.18; 
+const UPDATE_INTERVAL = 3600000; // 1 Hora en milisegundos
+
+// API PRIVADA (TIER 1 - PRIORIDAD)
+const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbytFG9Q1YwbwGtT03DxiiCj-p3Ja38FKTCo2etsur0RR7YefUE-llHrV2ulDJv1TrmxXw/exec?token=Lvbp1994';
 
 // Estrategias de conexión (Proxies)
 const CONNECTION_STRATEGIES = [
@@ -20,34 +24,64 @@ const CONNECTION_STRATEGIES = [
 
 export function useRates() {
   const [rates, setRates] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('monitor_rates_v4')) || null; } 
+    try { return JSON.parse(localStorage.getItem('monitor_rates_v12')) || null; } 
     catch { return null; }
   });
   
   const [loading, setLoading] = useState(false);
   const [isOffline, setIsOffline] = useState(false);
   const [logs, setLogs] = useState([]);
+  
+  // Mantenemos el estado para controlar el icono de la campanita en la UI
+  const [notificationsEnabled, setNotificationsEnabled] = useState(false);
 
   const currentRates = rates || DEFAULT_RATES;
 
+  // 1. Persistencia y Chequeo de Permisos
   useEffect(() => {
-    if (rates) localStorage.setItem('monitor_rates_v4', JSON.stringify(rates));
+    if (rates) localStorage.setItem('monitor_rates_v12', JSON.stringify(rates));
+    
+    // Sincronizar visualmente el botón con el permiso del navegador
+    if ('Notification' in window && Notification.permission === 'granted') {
+        setNotificationsEnabled(true);
+    }
   }, [rates]);
 
+  // 2. Sistema de Logs
   const addLog = useCallback((msg, type = 'info') => {
     const time = new Date().toLocaleTimeString([], { hour12: false, hour: '2-digit', minute:'2-digit', second:'2-digit' });
     setLogs(prev => [...prev.slice(-49), { time, msg, type }]);
   }, []);
 
-  const updateData = useCallback(async () => {
+  // 3. Activar Notificaciones (Solo pide permiso, OneSignal hace el resto)
+  const enableNotifications = async () => {
+      if (!('Notification' in window)) {
+          alert("Tu navegador no soporta notificaciones.");
+          return;
+      }
+      const permission = await Notification.requestPermission();
+      if (permission === 'granted') {
+          setNotificationsEnabled(true);
+          addLog("Permiso de notificaciones concedido", "success");
+      }
+  };
+
+  const parseSafeFloat = (val) => {
+      if (!val) return 0;
+      if (typeof val === 'number') return val;
+      if (typeof val === 'string') return parseFloat(val.replace(',', '.'));
+      return 0;
+  };
+
+  // --- LÓGICA PRINCIPAL ---
+  const updateData = useCallback(async (isAutoUpdate = false) => {
     setLoading(true); 
     setIsOffline(false); 
-    addLog("--- Iniciando Actualización ---");
+    addLog(isAutoUpdate ? "--- Auto-Update (Refresco UI) ---" : "--- Actualización Manual ---");
 
-    // --- HELPER: Fetch Genérico con Timeout ---
     const fetchGeneric = async (url) => {
         const controller = new AbortController();
-        const id = setTimeout(() => controller.abort(), 8000);
+        const id = setTimeout(() => controller.abort(), 8000); 
         try {
             const res = await fetch(url, { signal: controller.signal });
             clearTimeout(id);
@@ -56,164 +90,135 @@ export function useRates() {
         } catch (e) { clearTimeout(id); return null; }
     };
 
-    // --- 1. LÓGICA DE TRIANGULACIÓN (NUEVA API) ---
-    const getEuroFactor = async () => {
-        // Intento 1: ExchangeRate-API (Tu cuenta Premium)
-        try {
-            const url = `https://v6.exchangerate-api.com/v6/${EXCHANGERATE_KEY}/latest/USD`;
-            const data = await fetchGeneric(url);
-            
-            if (data && data.result === "success" && data.conversion_rates?.EUR) {
-                // Si 1 USD = 0.95 EUR, entonces 1 EUR = 1 / 0.95 USD
-                const factor = 1 / data.conversion_rates.EUR;
-                addLog("Euro calculado vía ExchangeRate-API", "success");
-                return factor;
-            }
-        } catch (e) { addLog("Fallo ExchangeRate-API, usando respaldo...", "error"); }
+    // FASE 1: API PRIVADA
+    let privateData = null;
+    try {
+        const rawPrivate = await fetchGeneric(GOOGLE_SCRIPT_URL);
+        if (rawPrivate && (rawPrivate.bcv || rawPrivate.usd)) {
+            privateData = rawPrivate;
+            addLog("✅ Datos Privados Recibidos", "success");
+        }
+    } catch (e) { addLog("Error API Privada", "error"); }
 
-        // Intento 2: Coinbase (Respaldo público)
+    // FASE 2: RESPALDOS Y USDT
+    const getEuroFactorFallback = async () => {
         try {
-            const globalData = await fetchGeneric('https://api.coinbase.com/v2/exchange-rates?currency=USD');
-            if (globalData?.data?.rates?.EUR) {
-                const factor = 1 / parseFloat(globalData.data.rates.EUR);
-                addLog("Euro calculado vía Coinbase", "info");
-                return factor;
-            }
+            const data = await fetchGeneric(`https://v6.exchangerate-api.com/v6/${EXCHANGERATE_KEY}/latest/USD`);
+            if (data?.result === "success" && data.conversion_rates?.EUR) return 1 / data.conversion_rates.EUR;
         } catch (e) {}
-
-        // Intento 3: Constante fija
-        addLog("Usando factor Euro fijo (Offline)", "error");
         return DEFAULT_EUR_USD_RATIO;
     };
 
-    // --- 2. LÓGICA DE CÁLCULO P2P (Binance) ---
     const calculateP2PAverage = (dataField) => {
         if (typeof dataField === 'number') return dataField;
         if (Array.isArray(dataField) && dataField.length > 0) {
-            const top3 = dataField.slice(0, 3);
-            const getPrice = (item) => (typeof item === 'object' && item.price ? parseFloat(item.price) : (typeof item === 'number' ? item : 0));
-            const sum = top3.reduce((acc, curr) => acc + getPrice(curr), 0);
-            return sum / top3.length;
+            const top5 = dataField.slice(0, 5);
+            const getPrice = (item) => (typeof item === 'object' && item.price ? parseSafeFloat(item.price) : (typeof item === 'number' ? item : 0));
+            return top5.reduce((acc, curr) => acc + getPrice(curr), 0) / top5.length;
         }
         return 0; 
     };
 
     const getMeta = (newP, oldP) => {
-      const p = parseFloat(newP) || 0; const o = parseFloat(oldP) || 0;
+      const p = parseSafeFloat(newP); 
+      const o = parseSafeFloat(oldP);
       return { price: p, change: (p > 0 && o > 0) ? ((p - o) / o) * 100 : 0 };
     };
 
-    // --- 3. FETCHING DE USDT (Multi-Salto) ---
     const fetchUSDT = async () => {
         const targetUrl = `https://criptoya.com/api/binancep2p/USDT/VES/5`; 
-        
         for (const strategy of CONNECTION_STRATEGIES) {
             try {
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => controller.abort(), 10000);
-
-                const url = strategy.buildUrl(targetUrl);
-                const response = await fetch(url, { signal: controller.signal });
+                const res = await fetch(strategy.buildUrl(targetUrl), { signal: controller.signal });
                 clearTimeout(timeoutId);
-
-                if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-                const text = await response.text();
-                let result;
-                try { result = JSON.parse(text); } catch(e) { throw new Error("JSON inválido"); }
-
-                if (!result || typeof result !== 'object') throw new Error("Formato inválido");
-
-                const hasAsk = result.ask !== undefined && result.ask !== null;
-                const hasBid = result.bid !== undefined && result.bid !== null;
-
-                if (!hasAsk && !hasBid) throw new Error("Datos vacíos");
-
-                const price = calculateP2PAverage(result.ask);
+                if (!res.ok) continue;
                 
-                if (price > 0) {
-                    addLog(`USDT vía ${strategy.name}`, 'success');
-                    return { price, source: `Binance P2P (${strategy.name})` };
-                }
+                const result = await res.json();
+                const avgAsk = calculateP2PAverage(result.ask);
+                const avgBid = calculateP2PAverage(result.bid);
 
+                if (avgAsk > 0 || avgBid > 0) {
+                    let finalPrice = (avgAsk > 0 && avgBid > 0) ? (avgAsk + avgBid) / 2 : (avgAsk || avgBid);
+                    return { price: finalPrice, source: `Binance P2P (${strategy.name})` };
+                }
             } catch (err) { continue; }
         }
         return null;
     };
 
-    // --- PROCESO PRINCIPAL DE ACTUALIZACIÓN ---
     try {
-      // A. Buscar BCV (DolarAPI)
-      const bcvData = await fetchGeneric('https://ve.dolarapi.com/v1/dolares');
-      
-      // B. Buscar USDT
-      const usdtResult = await fetchUSDT();
+      const promises = [fetchUSDT()];
+      if (!privateData) {
+          promises.push(fetchGeneric('https://ve.dolarapi.com/v1/dolares')); 
+          promises.push(getEuroFactorFallback()); 
+      }
 
-      // C. Buscar Factor Euro (Nueva lógica con tu API Key)
-      const euroFactor = await getEuroFactor();
+      const results = await Promise.all(promises);
+      const usdtResult = results[0];
+      const bcvFallbackData = !privateData ? results[1] : null;
+      const euroFactor = !privateData ? results[2] : null;
 
       let newRates = { ...(rates || DEFAULT_RATES) };
 
-      // Actualizar USDT
+      // --- ACTUALIZAR DATOS ---
       if (usdtResult) {
-          newRates.usdt = {
-              ...newRates.usdt,
-              ...getMeta(usdtResult.price, newRates.usdt.price),
-              source: usdtResult.source,
-              type: 'p2p'
-          };
-      } else {
-          // Fallback USDT
-          const paralelo = bcvData?.find(d => d.fuente === 'paralelo' || d.nombre === 'Paralelo');
-          if (paralelo?.promedio > 0) {
-              newRates.usdt = {
-                  ...newRates.usdt,
-                  ...getMeta(paralelo.promedio, newRates.usdt.price),
-                  source: 'Paralelo (Respaldo)',
-                  type: 'paralelo'
-              };
-          }
+          const meta = getMeta(usdtResult.price, newRates.usdt.price);
+          newRates.usdt = { ...newRates.usdt, price: usdtResult.price, change: meta.change, source: usdtResult.source, type: 'p2p' };
       }
 
-      // Actualizar BCV y Calcular Euro
-      if (bcvData) {
-          const oficial = bcvData.find(d => d.fuente === 'oficial' || d.nombre === 'Oficial');
+      // Procesar BCV y Euro
+      let newBcvPrice = 0;
+      let newEuroPrice = 0;
+
+      if (privateData) {
+          newBcvPrice = parseSafeFloat(privateData.bcv || privateData.usd);
+          newEuroPrice = parseSafeFloat(privateData.euro || privateData.eur);
+          
+          if (newBcvPrice > 0) newRates.bcv = { ...newRates.bcv, ...getMeta(newBcvPrice, newRates.bcv.price), source: 'BCV Oficial' };
+          if (newEuroPrice > 0) newRates.euro = { ...newRates.euro, ...getMeta(newEuroPrice, newRates.euro.price), source: 'Euro BCV' };
+
+      } else if (bcvFallbackData) {
+          const oficial = bcvFallbackData.find(d => d.fuente === 'oficial' || d.nombre === 'Oficial');
           if (oficial?.promedio > 0) {
-              const bcvPrice = parseFloat(oficial.promedio);
+              newBcvPrice = parseSafeFloat(oficial.promedio);
+              newRates.bcv = { ...newRates.bcv, ...getMeta(newBcvPrice, newRates.bcv.price), source: 'BCV Oficial (Respaldo)' };
               
-              // 1. Guardar BCV
-              newRates.bcv = { 
-                  ...newRates.bcv, 
-                  ...getMeta(bcvPrice, newRates.bcv.price), 
-                  source: 'BCV Oficial' 
-              };
-
-              // 2. Calcular Euro (BCV * Factor Global)
-              const euroPrice = bcvPrice * euroFactor;
-              newRates.euro = { 
-                  ...newRates.euro, 
-                  ...getMeta(euroPrice, newRates.euro.price), 
-                  source: 'Euro BCV (Triangulado)' 
-              };
+              if (euroFactor) {
+                  newEuroPrice = newBcvPrice * euroFactor;
+                  newRates.euro = { ...newRates.euro, ...getMeta(newEuroPrice, newRates.euro.price), source: 'Euro BCV (Triangulado)' };
+              }
           }
       }
+
+      // NOTA: Se eliminó el bloque de 'new Notification' para evitar duplicados.
+      // OneSignal manejará los Push Notifications desde el Backend.
 
       newRates.lastUpdate = new Date();
       setRates(newRates);
-      addLog("Ciclo completado", 'success');
+      addLog("Actualización completada", 'success');
 
     } catch (e) {
       console.error(e);
-      addLog("Error crítico al actualizar", 'error');
+      addLog("Error actualización", 'error');
       setIsOffline(true);
     } finally {
       setLoading(false);
     }
   }, [addLog, rates]);
 
+  // --- AUTO-UPDATE EFFECT ---
+  // Mantenemos esto para que la UI se refresque sola si el usuario tiene la app abierta
   useEffect(() => {
     if (!rates) updateData();
-  }, [updateData]);
 
-  return { rates: currentRates, loading, isOffline, logs, updateData };
+    const intervalId = setInterval(() => {
+        updateData(true); 
+    }, UPDATE_INTERVAL);
+
+    return () => clearInterval(intervalId);
+  }, [updateData, rates]);
+
+  return { rates: currentRates, loading, isOffline, logs, updateData, enableNotifications, notificationsEnabled };
 }
