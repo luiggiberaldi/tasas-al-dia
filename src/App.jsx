@@ -1,17 +1,19 @@
 import React, { useState, useEffect } from 'react';
-import { Home, Calculator, Settings, Download, Wallet } from 'lucide-react'; // Importamos icono Wallet
+import { Home, Calculator, Settings, Download, Wallet } from 'lucide-react'; 
 
 import MonitorView from './views/MonitorView';
 import CalculatorView from './views/CalculatorView';
 import InfoView from './views/InfoView';
-import WalletView from './views/WalletView'; // Importamos la nueva vista
+import WalletView from './views/WalletView'; 
 
 import { useRates } from './hooks/useRates'; 
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('monitor'); 
   const [installPrompt, setInstallPrompt] = useState(null);
-  const { rates, loading, isOffline, logs, updateData } = useRates();
+  
+  // ✅ ACTUALIZADO: Ahora extraemos 'notificationsEnabled' y 'enableNotifications'
+  const { rates, loading, isOffline, logs, updateData, notificationsEnabled, enableNotifications } = useRates();
 
   useEffect(() => {
     const handler = (e) => { e.preventDefault(); setInstallPrompt(e); };
@@ -52,6 +54,9 @@ export default function App() {
             rates={rates} loading={loading} isOffline={isOffline} 
             onRefresh={updateData} lastLog={logs[logs.length-1]} 
             toggleTheme={toggleTheme} theme={theme} 
+            // ✅ NUEVO: Pasamos las props de notificaciones al Monitor
+            notificationsEnabled={notificationsEnabled}
+            enableNotifications={enableNotifications}
           />
         )}
         
@@ -59,7 +64,6 @@ export default function App() {
           <CalculatorView rates={rates} toggleTheme={toggleTheme} theme={theme} />
         )}
 
-        {/* --- NUEVA VISTA DE BILLETERA --- */}
         {activeTab === 'wallet' && (
           <WalletView />
         )}
@@ -74,7 +78,6 @@ export default function App() {
           <TabButton icon={<Home size={20} strokeWidth={activeTab === 'monitor' ? 3 : 2} />} label="Inicio" isActive={activeTab === 'monitor'} onClick={() => setActiveTab('monitor')} />
           <TabButton icon={<Calculator size={20} strokeWidth={activeTab === 'calc' ? 3 : 2} />} label="Calc" isActive={activeTab === 'calc'} onClick={() => setActiveTab('calc')} />
           
-          {/* BOTÓN BILLETERA AGREGADO */}
           <TabButton icon={<Wallet size={20} strokeWidth={activeTab === 'wallet' ? 3 : 2} />} label="Wallet" isActive={activeTab === 'wallet'} onClick={() => setActiveTab('wallet')} />
 
           {installPrompt && activeTab === 'monitor' && (

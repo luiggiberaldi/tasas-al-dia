@@ -9,7 +9,7 @@ export default function MonitorView({ rates, loading, isOffline, onRefresh, togg
     const newCount = secretCount + 1;
     setSecretCount(newCount);
     if (newCount === 7) {
-        copyLogs();
+        copyLogs && copyLogs(); 
         setSecretCount(0);
     }
     if (newCount === 1) setTimeout(() => setSecretCount(0), 2000);
@@ -34,7 +34,6 @@ export default function MonitorView({ rates, loading, isOffline, onRefresh, togg
   if (loading && (!rates || !rates.usdt || rates.usdt.price === 0)) {
     return (
         <div className="space-y-8 pt-6 px-1 animate-pulse">
-            {/* ... (Tu skeleton anterior se mantiene igual) ... */}
             <div className="flex justify-between items-center mb-8 px-2">
                 <div className="h-10 w-32 bg-slate-200 dark:bg-slate-800 rounded-xl"></div>
                 <div className="flex gap-2">
@@ -56,7 +55,7 @@ export default function MonitorView({ rates, loading, isOffline, onRefresh, togg
       
       {/* --- HEADER --- */}
       <header className="flex items-center justify-between pt-6 pb-2 px-3">
-        {/* LOGO IZQUIERDA (BOTÓN SECRETO) */}
+        {/* LOGO IZQUIERDA */}
         <button 
             onClick={handleSecretDebug} 
             className="flex flex-col items-start gap-1 active:scale-95 transition-transform outline-none"
@@ -68,14 +67,13 @@ export default function MonitorView({ rates, loading, isOffline, onRefresh, togg
             />
             <div className="bg-slate-100 dark:bg-slate-800/50 px-2 py-0.5 rounded-md border border-slate-200/50 dark:border-slate-700/50 backdrop-blur-sm ml-1">
                 <p className="text-[8px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.15em] leading-none">
-                    Toma el control
+                    ACTUALIZADO DONDE VAYAS
                 </p>
             </div>
         </button>
 
         {/* BOTONES DERECHA */}
         <div className="flex items-center gap-2">
-            {/* BOTÓN NOTIFICACIONES */}
             <button 
                 onClick={enableNotifications} 
                 disabled={notificationsEnabled}
@@ -108,7 +106,6 @@ export default function MonitorView({ rates, loading, isOffline, onRefresh, togg
 
       {/* Grid Principal */}
       <div className="grid gap-6">
-          {/* Tarjeta Hero (Tasa USDT UNIFICADA) */}
           <div className="relative group">
              <div className="absolute -inset-0.5 bg-gradient-to-r from-brand/30 to-purple-500/30 rounded-[2.2rem] blur opacity-20 group-hover:opacity-40 transition duration-500"></div>
              <div className="relative bg-white dark:bg-slate-900 rounded-[2rem] p-7 shadow-2xl shadow-slate-200/50 dark:shadow-none border border-slate-100 dark:border-slate-800 overflow-hidden">
@@ -117,7 +114,6 @@ export default function MonitorView({ rates, loading, isOffline, onRefresh, togg
                     <TrendingUp size={140} />
                  </div>
 
-                 {/* Header */}
                  <div className="flex justify-between items-start mb-6">
                     <div className="flex flex-col gap-1">
                         <span className="text-sm font-medium text-slate-400 dark:text-slate-500">Promedio P2P</span>
@@ -129,7 +125,6 @@ export default function MonitorView({ rates, loading, isOffline, onRefresh, togg
                     {renderChange(rates.usdt.change)}
                  </div>
 
-                 {/* Precio Principal Unificado */}
                  <div className="flex items-baseline gap-1 mb-6">
                      <span className="text-2xl text-slate-300 dark:text-slate-600 font-bold font-sans transform -translate-y-4">$</span>
                      <div className="text-[4rem] leading-none font-black text-slate-900 dark:text-white tracking-tighter font-mono">
@@ -139,7 +134,6 @@ export default function MonitorView({ rates, loading, isOffline, onRefresh, togg
                      <span className="text-xl font-bold text-slate-400 ml-2">Bs</span>
                  </div>
 
-                 {/* Fuente */}
                  <div className="flex items-center gap-2 pt-4 border-t border-slate-50 dark:border-slate-800">
                     <div className="px-2 py-1 rounded-md bg-slate-100 dark:bg-slate-800 text-[10px] font-bold uppercase tracking-wider text-slate-500">Fuente</div>
                     <span className="text-xs font-medium text-slate-600 dark:text-slate-400 truncate">
@@ -150,13 +144,13 @@ export default function MonitorView({ rates, loading, isOffline, onRefresh, togg
           </div>
 
           <div className="grid grid-cols-2 gap-4">
+              {/* ✅ AHORA LAS TARJETAS MUESTRAN EL CAMBIO */}
               <RateCardMini title="Dolar BCV Oficial" price={rates.bcv.price} change={rates.bcv.change} icon="🏛️" formatVES={formatVES} renderChange={renderChange} />
               
               <RateCardMini title="Euro BCV Oficial" price={rates.euro.price} change={rates.euro.change} icon="🇪🇺" formatVES={formatVES} renderChange={renderChange} />
           </div>
       </div>
       
-      {/* Footer */}
       <div className="flex justify-center pb-4 opacity-60 hover:opacity-100 transition-opacity">
          <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-slate-100/50 dark:bg-slate-800/50 backdrop-blur-sm border border-slate-200/50 dark:border-slate-700/50">
             <Clock size={12} className="text-slate-400" />
@@ -169,12 +163,14 @@ export default function MonitorView({ rates, loading, isOffline, onRefresh, togg
   );
 }
 
+// ✅ COMPONENTE ACTUALIZADO
 function RateCardMini({ title, price, change, icon, formatVES, renderChange }) {
     return (
         <div className="bg-white dark:bg-slate-900 p-5 rounded-[1.5rem] border border-slate-100 dark:border-slate-800 shadow-sm hover:shadow-md transition-all hover:-translate-y-1 duration-300">
             <div className="flex justify-between items-start mb-4">
                 <span className="text-xl filter grayscale opacity-80">{icon}</span>
-                <div className={`w-2 h-2 rounded-full ${change > 0 ? 'bg-emerald-500' : 'bg-slate-300'}`}></div>
+                {/* AQUI SE MUESTRA EL PORCENTAJE (Si es 0 no muestra nada) */}
+                {change !== 0 ? renderChange(change) : <div className="h-5"></div>}
             </div>
             <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">{title}</span>
             <div className="text-xl font-black text-slate-800 dark:text-white tracking-tight font-mono">{formatVES(price)}</div>

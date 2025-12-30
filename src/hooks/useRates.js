@@ -10,12 +10,12 @@ const DEFAULT_RATES = {
 // --- CONFIGURACIÓN ---
 const EXCHANGERATE_KEY = 'F1a3af26247a97a33ee5ad90'; 
 const DEFAULT_EUR_USD_RATIO = 1.18; 
-const UPDATE_INTERVAL = 3600000; // 1 Hora en milisegundos
+const UPDATE_INTERVAL = 3600000; // 1 Hora
 
-// API PRIVADA (TIER 1 - PRIORIDAD) - ✅ URL ACTUALIZADA
+// API PRIVADA (TIER 1 - PRIORIDAD)
 const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxT9sKz_XWRWuQx_XP-BJ33T0hoAgJsLwhZA00v6nPt4Ij4jRjq-90mDGLVCsS6FXwW9Q/exec?token=Lvbp1994';
 
-// Estrategias de conexión (Proxies)
+// Estrategias de conexión
 const CONNECTION_STRATEGIES = [
     { name: 'Directo', buildUrl: (target) => target },
     { name: 'Proxy A (AllOrigins)', buildUrl: (target) => `https://api.allorigins.win/raw?url=${encodeURIComponent(target)}` },
@@ -31,29 +31,22 @@ export function useRates() {
   const [loading, setLoading] = useState(false);
   const [isOffline, setIsOffline] = useState(false);
   const [logs, setLogs] = useState([]);
-  
-  // Mantenemos el estado para controlar el icono de la campanita en la UI
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
 
   const currentRates = rates || DEFAULT_RATES;
 
-  // 1. Persistencia y Chequeo de Permisos
   useEffect(() => {
     if (rates) localStorage.setItem('monitor_rates_v12', JSON.stringify(rates));
-    
-    // Sincronizar visualmente el botón con el permiso del navegador
     if ('Notification' in window && Notification.permission === 'granted') {
         setNotificationsEnabled(true);
     }
   }, [rates]);
 
-  // 2. Sistema de Logs
   const addLog = useCallback((msg, type = 'info') => {
     const time = new Date().toLocaleTimeString([], { hour12: false, hour: '2-digit', minute:'2-digit', second:'2-digit' });
     setLogs(prev => [...prev.slice(-49), { time, msg, type }]);
   }, []);
 
-  // 3. Activar Notificaciones (Solo pide permiso, OneSignal hace el resto)
   const enableNotifications = async () => {
       if (!('Notification' in window)) {
           alert("Tu navegador no soporta notificaciones.");
@@ -73,7 +66,6 @@ export function useRates() {
       return 0;
   };
 
-  // --- LÓGICA PRINCIPAL ---
   const updateData = useCallback(async (isAutoUpdate = false) => {
     setLoading(true); 
     setIsOffline(false); 
@@ -90,7 +82,6 @@ export function useRates() {
         } catch (e) { clearTimeout(id); return null; }
     };
 
-    // FASE 1: API PRIVADA
     let privateData = null;
     try {
         const rawPrivate = await fetchGeneric(GOOGLE_SCRIPT_URL);
@@ -100,7 +91,6 @@ export function useRates() {
         }
     } catch (e) { addLog("Error API Privada", "error"); }
 
-    // FASE 2: RESPALDOS Y USDT
     const getEuroFactorFallback = async () => {
         try {
             const data = await fetchGeneric(`https://v6.exchangerate-api.com/v6/${EXCHANGERATE_KEY}/latest/USD`);
@@ -119,9 +109,15 @@ export function useRates() {
         return 0; 
     };
 
-    const getMeta = (newP, oldP) => {
+    // ✅ LÓGICA MEJORADA: Si el precio es igual al anterior, MANTIENE el porcentaje viejo (Sticky Change)
+    const getMeta = (newP, oldP, oldChange = 0) => {
       const p = parseSafeFloat(newP); 
       const o = parseSafeFloat(oldP);
+      
+      // Si el precio no ha cambiado, devolvemos el cambio histórico que ya teníamos
+      if (p === o) return { price: p, change: oldChange };
+      
+      // Si el precio cambió, calculamos el nuevo porcentaje real
       return { price: p, change: (p > 0 && o > 0) ? ((p - o) / o) * 100 : 0 };
     };
 
@@ -162,13 +158,12 @@ export function useRates() {
 
       let newRates = { ...(rates || DEFAULT_RATES) };
 
-      // --- ACTUALIZAR DATOS ---
       if (usdtResult) {
-          const meta = getMeta(usdtResult.price, newRates.usdt.price);
+          // Pasamos el change actual para conservarlo si es igual
+          const meta = getMeta(usdtResult.price, newRates.usdt.price, newRates.usdt.change);
           newRates.usdt = { ...newRates.usdt, price: usdtResult.price, change: meta.change, source: usdtResult.source, type: 'p2p' };
       }
 
-      // Procesar BCV y Euro
       let newBcvPrice = 0;
       let newEuroPrice = 0;
 
@@ -176,18 +171,27 @@ export function useRates() {
           newBcvPrice = parseSafeFloat(privateData.bcv || privateData.usd);
           newEuroPrice = parseSafeFloat(privateData.euro || privateData.eur);
           
-          if (newBcvPrice > 0) newRates.bcv = { ...newRates.bcv, ...getMeta(newBcvPrice, newRates.bcv.price), source: 'BCV Oficial' };
-          if (newEuroPrice > 0) newRates.euro = { ...newRates.euro, ...getMeta(newEuroPrice, newRates.euro.price), source: 'Euro BCV' };
+          if (newBcvPrice > 0) {
+              // Pasamos el change viejo
+              const meta = getMeta(newBcvPrice, newRates.bcv.price, newRates.bcv.change);
+              newRates.bcv = { ...newRates.bcv, ...meta, source: 'BCV Oficial' };
+          }
+          if (newEuroPrice > 0) {
+              const meta = getMeta(newEuroPrice, newRates.euro.price, newRates.euro.change);
+              newRates.euro = { ...newRates.euro, ...meta, source: 'Euro BCV' };
+          }
 
       } else if (bcvFallbackData) {
           const oficial = bcvFallbackData.find(d => d.fuente === 'oficial' || d.nombre === 'Oficial');
           if (oficial?.promedio > 0) {
               newBcvPrice = parseSafeFloat(oficial.promedio);
-              newRates.bcv = { ...newRates.bcv, ...getMeta(newBcvPrice, newRates.bcv.price), source: 'BCV Oficial (Respaldo)' };
+              const meta = getMeta(newBcvPrice, newRates.bcv.price, newRates.bcv.change);
+              newRates.bcv = { ...newRates.bcv, ...meta, source: 'BCV Oficial (Respaldo)' };
               
               if (euroFactor) {
                   newEuroPrice = newBcvPrice * euroFactor;
-                  newRates.euro = { ...newRates.euro, ...getMeta(newEuroPrice, newRates.euro.price), source: 'Euro BCV (Triangulado)' };
+                  const metaEur = getMeta(newEuroPrice, newRates.euro.price, newRates.euro.change);
+                  newRates.euro = { ...newRates.euro, ...metaEur, source: 'Euro BCV (Triangulado)' };
               }
           }
       }
@@ -205,7 +209,6 @@ export function useRates() {
     }
   }, [addLog, rates]);
 
-  // --- AUTO-UPDATE EFFECT ---
   useEffect(() => {
     if (!rates) updateData();
 
