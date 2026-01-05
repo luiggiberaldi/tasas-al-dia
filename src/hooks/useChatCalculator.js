@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { interpretVoiceCommandAI, analyzeImageAI } from '../utils/groqClient';
 import { formatBs, formatUsd } from '../utils/calculatorUtils';
 
-export const useChatCalculator = (rates, speak) => {
+export const useChatCalculator = (rates, speak, setClientName) => {
     const [messages, setMessages] = useState([
         { id: 1, role: 'bot', type: 'text', content: '👋 ¡Hola! Soy Mister Cambio. ¿Qué calculamos hoy?' }
     ]);
@@ -17,45 +17,47 @@ export const useChatCalculator = (rates, speak) => {
     };
 
     const processAIResult = (aiResult) => {
+        if (aiResult?.intent === 'invertir') {
+            // Implementar lógica de inversión si es necesario
+            addMessage('bot', 'text', 'Función de invertir aún no implementada en el chat.');
+            setIsProcessing(false);
+            return;
+        }
+
         if (aiResult?.amount) {
+            // ✅ Si la IA detecta un nombre, se actualiza el estado central
+            if (aiResult.clientName) {
+                setClientName(aiResult.clientName);
+            }
+
             const amount = parseFloat(aiResult.amount);
             const currency = aiResult.currency || 'USD';
-            let target = aiResult.targetCurrency;
-            
-            // Inferencia de destino
-            if (!target) {
-                if (currency === 'USDT') target = 'USD';
-                else if (currency === 'USD') target = 'USDT';
-                else if (currency === 'EUR') target = 'VES';
-                else target = 'USD';
-            }
+            let target = aiResult.targetCurrency || 'VES'; // Default a VES si no se especifica
             
             let result = 0, rateUsed = 0, rateName = '';
             
-            // Lógica de Negocio (Tasas)
-            if (currency === 'USDT' && target === 'USD') {
-                rateUsed = rates.usdt.price / rates.bcv.price;
+            if (currency === 'USDT' && target === 'VES') {
+                rateUsed = rates.usdt.price;
                 result = amount * rateUsed;
-                rateName = 'Brecha (USDT → BCV)';
-            } else if (currency === 'USD' && target === 'USDT') {
-                rateUsed = rates.bcv.price / rates.usdt.price;
+                rateName = 'Tasa Paralelo (USDT)';
+            } else if (currency === 'USD' && target === 'VES') {
+                rateUsed = rates.bcv.price;
                 result = amount * rateUsed;
-                rateName = 'Brecha (BCV → USDT)';
-            } else if (currency === 'USD' && target === 'EUR') {
-                rateUsed = rates.bcv.price / rates.euro.price;
+                rateName = 'Tasa Oficial (BCV)';
+            } else if (currency === 'EUR' && target === 'VES') {
+                rateUsed = rates.euro.price;
                 result = amount * rateUsed;
-                rateName = 'Dólar a Euro';
-            } else if (currency === 'EUR' && target === 'USD') {
-                rateUsed = rates.euro.price / rates.bcv.price;
-                result = amount * rateUsed;
-                rateName = 'Euro a Dólar';
-            } else if (target === 'VES') {
-                if (currency === 'USDT') { rateUsed = rates.usdt.price; rateName = 'Tasa USDT'; }
-                else if (currency === 'EUR') { rateUsed = rates.euro.price; rateName = 'Tasa Euro'; }
-                else { rateUsed = rates.bcv.price; rateName = 'Tasa BCV'; }
-                result = amount * rateUsed;
+                rateName = 'Tasa Euro';
+            } else if (currency === 'VES' && target === 'USD') {
+                rateUsed = rates.bcv.price;
+                result = amount / rateUsed;
+                rateName = 'Tasa Oficial (BCV)';
             } else {
-                result = amount; rateUsed = 1; rateName = 'Mismo valor';
+                // Lógica de conversión para otras combinaciones (ej. USD a USDT)
+                // Esta parte puede necesitar más detalle según las reglas de negocio
+                addMessage('bot', 'text', `No se pudo convertir de ${currency} a ${target}.`);
+                setIsProcessing(false);
+                return;
             }
 
             const data = { 
@@ -66,11 +68,10 @@ export const useChatCalculator = (rates, speak) => {
 
             addMessage('bot', 'calculation', null, data);
             
-            // Feedback de voz
-            const vozMonto = target === 'VES' ? formatBs(result) : formatUsd(result);
+            const vozMonto = target === 'VES' ? formatBs(result) : formatUsd(result, 2);
             speak(`Son ${vozMonto}.`);
         } else {
-            addMessage('bot', 'text', 'No entendí el monto. Intenta "100 USDT a BCV".');
+            addMessage('bot', 'text', 'No entendí la instrucción. Prueba con algo como: "100 dólares" o "cuánto es 50 usdt para Juan".');
         }
         setIsProcessing(false);
     };
@@ -80,16 +81,18 @@ export const useChatCalculator = (rates, speak) => {
         addMessage('user', 'text', text);
         setIsProcessing(true);
         try {
-            // Historial breve para contexto
-            const history = messages.slice(-4).map(m => ({ 
-                role: m.role === 'user' ? 'user' : 'assistant', 
-                content: m.type === 'calculation' ? `Calc: ${m.data.originalAmount} ${m.data.originalSource}` : m.content 
+            const history = messages.slice(-5).map(m => ({ 
+                role: m.role === 'user' ? 'user' : 'assistant',
+                content: m.content || `Cálculo anterior` 
             }));
-            history.push({ role: 'user', content: text });
-            
-            const aiResult = await interpretVoiceCommandAI(history);
+
+            const aiResult = await interpretVoiceCommandAI([...history, { role: 'user', content: text }]);
             processAIResult(aiResult);
-        } catch { setIsProcessing(false); }
+        } catch(e) { 
+            console.error("Error procesando IA", e);
+            addMessage('bot','text', 'Tuve un problema para procesar eso. Intenta de nuevo.');
+            setIsProcessing(false); 
+        }
     };
 
     const handleImageUpload = async (file) => {
@@ -102,9 +105,23 @@ export const useChatCalculator = (rates, speak) => {
         reader.onload = async () => {
             try {
                 const res = await analyzeImageAI(reader.result);
-                processAIResult(res);
-            } catch { setIsProcessing(false); }
+                if (res?.amount) {
+                    const textCommand = `${res.amount} ${res.currency || 'USD'}`;
+                    handleTextSend(textCommand);
+                } else {
+                    addMessage('bot', 'text', 'No pude leer un monto en esa imagen.');
+                    setIsProcessing(false);
+                }
+            } catch(e) { 
+                console.error("Error en análisis de imagen", e);
+                addMessage('bot', 'text', 'No pude analizar la imagen.');
+                setIsProcessing(false); 
+            }
         };
+        reader.onerror = () => {
+            addMessage('bot', 'text', 'Error al cargar la imagen.');
+            setIsProcessing(false);
+        }
     };
 
     return {
@@ -113,6 +130,5 @@ export const useChatCalculator = (rates, speak) => {
         messagesEndRef,
         handleTextSend,
         handleImageUpload,
-        clearMessages: () => setMessages([])
     };
 };

@@ -34,10 +34,10 @@ Analizar la petición del usuario, incluso si es informal, y extraer los datos c
 
 REGLAS DE INTERPRETACIÓN:
 1.  **INFERENCIA DE MONEDA DE ORIGEN (currency):**
-    - "USDT", "Tether", "Binance", "P2P" => "USDT"
-    - "Dólar", "$", "USD", "BCV", "Banco Central", "Efectivo", "Verdes" => "USD"
-    - "Euro", "Euros", "€" => "EUR"
-    - "Bolívares", "Bs", "Bolos" => "VES"
+    - "USDT", "Tether", "Binance", "P2P", "usdt" => "USDT"
+    - "Dólar", "$", "USD", "BCV", "Banco Central", "Efectivo", "Verdes", "dólares", "lucas" => "USD"
+    - "Euro", "Euros", "€", "euros" => "EUR"
+    - "Bolívares", "Bs", "Bolos", "bolívares", "soberanos", "fuertes" => "VES"
 
 2.  **INFERENCIA DE MONEDA DE DESTINO (targetCurrency):**
     - **PRIORIDAD 1:** Si el usuario especifica claramente una moneda de destino (ej: "a bolívares", "en usdt", "pasalos a dolares"), ESA ES LA QUE DEBES USAR.
@@ -71,7 +71,9 @@ EJEMPLOS CLAVE:
 - "20€ en bolívares" -> {"intent": "calcular", "amount": 20, "currency": "EUR", "targetCurrency": "VES", "clientName": null}
 - "cuanto es 50 usdt para Juan" -> {"intent": "calcular", "amount": 50, "currency": "USDT", "targetCurrency": "VES", "clientName": "Juan"}
 - "1500 bolivares" -> {"intent": "calcular", "amount": 1500, "currency": "VES", "targetCurrency": "USD", "clientName": null}
-- "invierte" -> {"intent": "invertir", "amount": null, "currency": null, "targetCurrency": null, "clientName": null}`
+- "invierte" -> {"intent": "invertir", "amount": null, "currency": null, "targetCurrency": null, "clientName": null}
+- "100" -> {"intent": "calcular", "amount": 100, "currency": null, "targetCurrency": null, "clientName": null}
+`
                 },
                 ...messages 
             ],
@@ -116,10 +118,10 @@ export const generateSmartMessage = async (account, amountsString, tone, clientN
         const safeName = (clientName && clientName.length < 20) ? clientName : "Estimado/a";
         
         const personas = {
-            standard: "Mister Cambio: Caballero amable, claro y servicial.",
-            formal: "Mister Cambio Ejecutivo: Muy respetuoso y pulcro.",
-            amigable: "Mister Cambio de Confianza: Cálido, usa 'Con gusto', 'Mi estimado'.",
-            cobrador: "Mister Cambio Firme: Solicita el pago con educación."
+            standard: "Mister Cambio Amable: Tono cordial y directo, muy venezolano.",
+            formal: "Mister Cambio Ejecutivo: Respetuoso y profesional, para negocios.",
+            amigable: "Mister Cambio Pana: Tono cercano y amigable, como un buen amigo.",
+            cobrador: "Mister Cambio Directo: Firme pero educado para recordar el pago."
         };
 
         const prompt = `Actúa como "Mister Cambio", el asistente de IA personal de "${account.holder}". Tu misión es redactar un mensaje de cobro claro, profesional y en el tono adecuado para ser enviado por WhatsApp.
@@ -129,22 +131,24 @@ PERSONA (ESTILO): Adopta la siguiente personalidad -> ${personas[tone]}
 CLIENTE: El mensaje va dirigido a "${safeName}".
 
 ESTRUCTURA DEL MENSAJE (OBLIGATORIA):
-1.  **SALUDO INICIAL:** Comienza con un saludo cordial y profesional. Usa el nombre del cliente si está disponible. (Ej: "Hola ${safeName}, te saluda Mister Cambio, asistente de ${account.holder}. Con gusto te comparto los datos para el pago.")
+1.  **SALUDO INICIAL:** Comienza con un saludo cordial y profesional. Usa el nombre del cliente si está disponible. (Ej: "¡Hola ${safeName}! Te saluda Mister Cambio, asistente de ${account.holder}. Con gusto te comparto los datos para el pago.")
 2.  **TOTALES A PAGAR:** Presenta los montos de forma clara y ordenada bajo el título "*Montos a Pagar:*". Usa viñetas (•) para cada moneda.
     ${amountsString}
-3.  **DATOS DE PAGO:** Presenta los datos de la cuenta de forma estructurada bajo un título que describa el método (Ej: "*Datos Pago Móvil*"). Incluye todos los detalles relevantes.
+3.  **DATOS DE PAGO:** Presenta los datos de la cuenta de forma estructurada bajo un título que describa el método (Ej: "*Datos para el Pago*"). Incluye todos los detalles relevantes.
     - Método: ${account.type.replace('_', ' ')}
     - Banco/Plataforma: ${account.bank || account.type}
     - Datos: ${account.phone || account.email || account.accountNumber}
     - Titular: ${account.holder}
     - Cédula/RIF: ${account.id || 'N/A'}
-4.  **LLAMADO A LA ACCIÓN Y DESPEDIDA:** Finaliza el mensaje indicando al cliente que debe enviar el comprobante y con una despedida amable. (Ej: "Por favor, recuerda enviar el comprobante una vez realizado el pago. ¡Quedo atento, que tengas un excelente día!")
+4.  **LLAMADO A LA ACCIÓN Y DESPEDIDA:** Finaliza el mensaje indicando al cliente que debe enviar el comprobante y con una despedida amable. (Ej: "Por favor, recuerda enviar el capture de la transferencia una vez realizado el pago. ¡Quedo atento, que tengas un excelente día!")
 
 REGLAS ADICIONALES:
 - Usa formato de WhatsApp (negritas con *, cursivas con _).
-- Mantén un lenguaje español latino, neutro y masculino.
+- Mantén un lenguaje español venezolano, neutro y masculino.
 - Sé conciso y directo, pero siempre amable.
-- NO inventes información que no se proporciona.`;
+- NO inventes información que no se proporciona.
+- Si el método de pago es "Zelle", no incluyas Cédula/RIF.
+`;
 
         const completion = await groq.chat.completions.create({
             messages: [{ role: "user", content: prompt }],

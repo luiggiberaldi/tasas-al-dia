@@ -1,17 +1,21 @@
 import React, { useState, useRef } from 'react';
-import { Send, Mic, MicOff, Camera, RefreshCcw, Copy, Share2, UserCircle, Zap } from 'lucide-react';
+import { Send, Mic, MicOff, Camera, RefreshCcw, Copy, Share2, UserCircle } from 'lucide-react';
 import { useChatCalculator } from '../../hooks/useChatCalculator';
 import { formatBs, formatUsd } from '../../utils/calculatorUtils';
 import { Modal } from '../../components/Modal';
-import { PaymentSummaryChat } from './PaymentSummaryChat'; // Asumiendo que la tienes para el modal
+import { PaymentSummaryChat } from './PaymentSummaryChat';
+import { useToast, Toast } from '../../components/Toast'; // ✅ 1. Importar Toast
 
-export const ChatMode = ({ rates, accounts, voiceControl }) => {
-    const { messages, isProcessing, messagesEndRef, handleTextSend, handleImageUpload } = useChatCalculator(rates, voiceControl.speak);
+export const ChatMode = ({ rates, accounts, voiceControl, clientName, setClientName }) => {
+    const { messages, isProcessing, messagesEndRef, handleTextSend, handleImageUpload } = useChatCalculator(rates, voiceControl.speak, setClientName);
     const [input, setInput] = useState('');
     const fileInputRef = useRef(null);
     
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [selectedMsgData, setSelectedMsgData] = useState(null);
+    
+    // ✅ 2. Inicializar hook de Toast
+    const { toast, showToast } = useToast();
 
     const onSend = () => {
         if (input.trim() === '') return;
@@ -29,10 +33,6 @@ export const ChatMode = ({ rates, accounts, voiceControl }) => {
         recognition.start();
     };
 
-    const handleQuickAction = (text) => {
-        handleTextSend(text);
-    };
-
     const openShareModal = (msgData) => {
         setSelectedMsgData(msgData);
         setIsModalOpen(true);
@@ -41,10 +41,24 @@ export const ChatMode = ({ rates, accounts, voiceControl }) => {
     const handleConfirmShare = (msg) => {
         window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
         setIsModalOpen(false);
+        setClientName(null); // Limpiar nombre de cliente después de compartir
+    };
+
+    // ✅ 4. Lógica de copiado mejorada
+    const handleCopy = (data) => {
+        const formattedResult = data.targetCurrency.includes('VES') 
+            ? formatBs(data.resultAmount) 
+            : formatUsd(data.resultAmount);
+        
+        navigator.clipboard.writeText(data.resultAmount);
+        showToast(`Copiado: ${formattedResult}`);
     };
 
     return (
         <div className="flex flex-col h-full relative">
+            {/* ✅ 3. Renderizar el Toast */}
+            <Toast message={toast.message} show={toast.show} />
+
             <div className="flex-1 overflow-y-auto p-4 pb-36 space-y-6 scrollbar-hide">
                 {messages.map((msg) => (
                     <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-in slide-in-from-bottom-2 duration-500`}>
@@ -63,30 +77,24 @@ export const ChatMode = ({ rates, accounts, voiceControl }) => {
                                             <span className="text-[10px] font-mono font-bold text-slate-500">{formatBs(msg.data.rateUsed)}</span>
                                         </div>
                                         <div className="p-4 bg-white dark:bg-slate-900">
-                                            {msg.data.clientName && <div className="flex items-center gap-1 mb-2 text-xs font-bold text-indigo-500 bg-indigo-50 w-fit px-2 py-0.5 rounded-md"><UserCircle size={12}/> {msg.data.clientName}</div>}
+                                            {msg.data.clientName && <div className="flex items-center gap-1 mb-2 text-xs font-bold text-indigo-500 bg-indigo-50 dark:bg-indigo-500/10 w-fit px-2 py-0.5 rounded-md"><UserCircle size={12}/> {msg.data.clientName}</div>}
                                             <div className="flex items-baseline gap-2 mb-1">
                                                 <span className="text-3xl font-black text-slate-800 dark:text-white tracking-tighter">
                                                     {msg.data.targetCurrency.includes('VES') ? formatBs(msg.data.resultAmount) : formatUsd(msg.data.resultAmount)}
                                                 </span>
                                                 <span className="text-xs font-bold text-slate-400">{msg.data.targetCurrency}</span>
                                             </div>
-                                            <p className="text-[10px] text-slate-400 font-medium border-t border-slate-100 pt-2 mt-2">
+                                            <p className="text-[10px] text-slate-400 font-medium border-t border-slate-100 dark:border-slate-800 pt-2 mt-2">
                                                 Entrada: {msg.data.originalAmount} {msg.data.originalSource}
                                             </p>
                                         </div>
                                         <div className="p-2 bg-slate-50 dark:bg-slate-800/50 flex gap-2 border-t border-slate-100 dark:border-slate-800">
-                                            <button onClick={() => navigator.clipboard.writeText(msg.data.resultAmount)} className="flex-1 py-2 bg-white dark:bg-slate-700 rounded-xl shadow-sm text-xs font-bold text-slate-600 hover:text-brand-dark flex items-center justify-center gap-1.5 transition-all active:scale-95">
+                                            <button onClick={() => handleCopy(msg.data)} className="flex-1 py-2 bg-white dark:bg-slate-700 rounded-xl shadow-sm text-xs font-bold text-slate-600 hover:text-brand-dark flex items-center justify-center gap-1.5 transition-all active:scale-95">
                                                 <Copy size={14}/> Copiar
                                             </button>
                                             <button onClick={() => openShareModal(msg.data)} className="flex-1 py-2 bg-brand text-slate-900 rounded-xl shadow-sm text-xs font-bold hover:brightness-110 flex items-center justify-center gap-1.5 transition-all active:scale-95">
-                                                <Share2 size={14}/> Generar Nota
+                                                <Share2 size={14}/> {msg.data.clientName ? `Nota para ${msg.data.clientName}` : 'Generar Nota'}
                                             </button>
-                                        </div>
-                                        {/* Botones de Acción Rápida */}
-                                        <div className="p-2 bg-slate-50 dark:bg-slate-800/50 flex gap-2 border-t border-slate-100 dark:border-slate-800">
-                                            <button onClick={() => handleQuickAction(`invertir`)} className="flex-1 text-xs font-semibold text-slate-500 hover:text-brand-dark bg-white dark:bg-slate-700/50 py-2 rounded-lg transition-colors">Invertir</button>
-                                            <button onClick={() => handleQuickAction(`${msg.data.resultAmount} ${msg.data.targetCurrency} a USDT`)} className="flex-1 text-xs font-semibold text-slate-500 hover:text-brand-dark bg-white dark:bg-slate-700/50 py-2 rounded-lg transition-colors">a USDT</button>
-                                            <button onClick={() => handleQuickAction(`cuanto es 100$?`)} className="flex-1 text-xs font-semibold text-slate-500 hover:text-brand-dark bg-white dark:bg-slate-700/50 py-2 rounded-lg transition-colors">100$? a Bs</button>
                                         </div>
                                     </div>
                                 )}
@@ -94,7 +102,7 @@ export const ChatMode = ({ rates, accounts, voiceControl }) => {
                         )}
                     </div>
                 ))}
-                {isProcessing && <div className="flex justify-start"><div className="bg-white dark:bg-slate-900 p-3 rounded-2xl rounded-tl-none border border-slate-100 shadow-sm flex gap-2 items-center"><RefreshCcw size={16} className="animate-spin text-brand"/><span className="text-xs font-bold text-slate-400">Pensando...</span></div></div>}
+                {isProcessing && <div className="flex justify-start"><div className="bg-white dark:bg-slate-900 p-3 rounded-2xl rounded-tl-none border border-slate-100 dark:border-slate-800 shadow-sm flex gap-2 items-center"><RefreshCcw size={16} className="animate-spin text-brand"/><span className="text-xs font-bold text-slate-400">Pensando...</span></div></div>}
                 <div ref={messagesEndRef}/>
             </div>
 
@@ -113,15 +121,14 @@ export const ChatMode = ({ rates, accounts, voiceControl }) => {
                 </div>
             </div>
 
-            {/* Modal para generar la nota de pago */}
-            <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Generar Nota de Pago">
+            <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={ selectedMsgData?.clientName ? `Nota para ${selectedMsgData.clientName}` : 'Generar Nota de Pago' }>
                 {selectedMsgData && (
                      <PaymentSummaryChat 
-                        // Aquí asumimos que PaymentSummaryChat puede manejar una cuenta predeterminada si no se selecciona una
-                        selectedAccount={accounts.length === 1 ? accounts[0] : null} 
+                        accounts={accounts}
+                        selectedAccount={accounts.find(a => a.isDefault) || (accounts.length > 0 ? accounts[0] : null)}
                         chatData={selectedMsgData}
                         rates={rates}
-                        onBack={() => setIsModalOpen(false)} // Simplemente cierra el modal
+                        onBack={() => setIsModalOpen(false)}
                         onConfirm={handleConfirmShare}
                     />
                 )}
