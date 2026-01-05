@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Mic, MicOff, Copy, MessageSquare, Camera, ArrowRightLeft, History, User } from 'lucide-react';
+import { Mic, MicOff, Copy, MessageSquare, Camera, ArrowRightLeft, User } from 'lucide-react';
 import html2canvas from 'html2canvas';
 import { useCalculator } from '../../hooks/useCalculator';
 import { interpretVoiceCommandAI } from '../../utils/groqClient';
@@ -8,11 +8,11 @@ import CalculatorInput from '../../components/CalculatorInput';
 import { AccountSelector } from './AccountSelector';
 import { PaymentSummaryChat } from './PaymentSummaryChat';
 import { formatBs, formatUsd } from '../../utils/calculatorUtils';
-import { useToast, Toast } from '../../components/Toast'; // ✅ 1. Importar Toast
+import { useToast, Toast } from '../../components/Toast';
 
 export const ManualMode = ({ rates, accounts, theme, clientName, setClientName }) => {
     const calc = useCalculator(rates);
-    const { toast, showToast } = useToast(); // ✅ 2. Inicializar hook
+    const { toast, showToast } = useToast();
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [selectedAccount, setSelectedAccount] = useState(null);
     const [isListening, setIsListening] = useState(false);
@@ -35,7 +35,7 @@ export const ManualMode = ({ rates, accounts, theme, clientName, setClientName }
             if (res?.amount) {
                 if (res.currency) calc.setFrom(res.currency.toUpperCase());
                 if (res.targetCurrency) calc.setTo(res.targetCurrency.toUpperCase());
-                if (res.clientName) setClientName(res.clientName); // ✅ Setea el nombre del cliente desde la voz
+                if (res.clientName) setClientName(res.clientName);
                 calc.handleAmountChange(res.amount.toString(), 'top');
             }
         };
@@ -46,7 +46,7 @@ export const ManualMode = ({ rates, accounts, theme, clientName, setClientName }
         if (!calc.amountBot) return;
         const result = calc.to === 'VES' ? formatBs(calc.amountBot) : formatUsd(calc.amountBot);
         navigator.clipboard.writeText(calc.amountBot);
-        showToast(`Copiado: ${result}`); // ✅ 4. Usa el nuevo Toast
+        showToast(`Copiado: ${result}`);
     };
 
     const handleShareImage = async () => {
@@ -63,18 +63,17 @@ export const ManualMode = ({ rates, accounts, theme, clientName, setClientName }
     const onConfirmShare = (msg) => {
         window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
         setIsModalOpen(false);
-        setClientName(''); // Limpia el nombre del cliente
+        setClientName('');
     }
 
     const formatRate = (rate) => rate < 1 ? rate.toFixed(6) : rate.toFixed(2);
 
     return (
         <div className="flex flex-col h-full bg-slate-50 dark:bg-slate-950/50">
-            <Toast message={toast.message} show={toast.show} /> {/* ✅ 3. Renderizar Toast */}
+            <Toast message={toast.message} show={toast.show} />
             <div className="flex-1 overflow-y-auto p-6 scrollbar-hide">
                 <div ref={captureRef} className="space-y-6 pb-4">
-                    {/* ... (Cabecera sin cambios) ... */}
-                     <div className="flex justify-between items-center">
+                    <div className="flex justify-between items-center">
                         <div>
                             <h2 className="text-2xl font-black text-slate-800 dark:text-white tracking-tight">Conversión Rápida</h2>
                             <p className="text-sm text-slate-400 font-medium">Calculadora de precisión</p>
@@ -84,7 +83,6 @@ export const ManualMode = ({ rates, accounts, theme, clientName, setClientName }
                         </button>
                     </div>
 
-                    {/* ... (Calculadora sin cambios) ... */}
                      <div className="relative flex flex-col gap-2">
                         <div className="bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-200 dark:border-slate-800 shadow-sm p-1 z-0">
                            <CalculatorInput label="TENGO" amount={calc.amountTop} currency={calc.from} currencies={modifiedCurrencies} onAmountChange={(v) => calc.handleAmountChange(v, 'top')} onCurrencyChange={calc.setFrom} onClear={calc.clear}/>
@@ -102,7 +100,6 @@ export const ManualMode = ({ rates, accounts, theme, clientName, setClientName }
                         </div>
                     </div>
 
-                    {/* ✅ 5. Campo opcional para nombre de cliente */}
                     <div className="relative">
                         <User size={16} className="absolute top-1/2 left-4 -translate-y-1/2 text-slate-400"/>
                         <input 
@@ -114,25 +111,25 @@ export const ManualMode = ({ rates, accounts, theme, clientName, setClientName }
                         />
                     </div>
 
-                    {/* ... (Historial sin cambios) ... */}
-                    {calc.history.length > 0 && <div className="space-y-3 pt-4">...</div>}
+                    {/* ✅ 1. SE ELIMINA EL HISTORIAL DE LA CALCULADORA */}
                 </div>
             </div>
 
             <div className="p-5 pt-2 flex-shrink-0 z-20 bg-gradient-to-t from-slate-50 via-slate-50 to-transparent dark:from-slate-950 dark:via-slate-950">
-                <div className="grid grid-cols-4 gap-3">
-                    <button onClick={handleCopy} className="col-span-1 h-20 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl text-slate-500 dark:text-slate-400 hover:shadow-lg hover:-translate-y-0.5 transition-all active:scale-95 flex flex-col items-center justify-center gap-1 shadow-sm">
+                {/* ✅ 2. LAYOUT DE BOTONES CORREGIDO CON FLEXBOX */}
+                <div className="flex items-center gap-3">
+                    <button onClick={handleCopy} className="h-20 w-20 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl text-slate-500 dark:text-slate-400 hover:shadow-lg hover:-translate-y-0.5 transition-all active:scale-95 flex flex-col items-center justify-center gap-1 shadow-sm">
                         <Copy size={20}/>
                         <span className="text-[9px] font-bold uppercase tracking-widest">Copiar</span>
                     </button>
                     
-                    {/* ✅ 6. Botón de nota dinámico */}
-                    <button onClick={handleCobrarClick} disabled={!calc.amountTop} className="col-span-2 h-20 bg-brand text-slate-900 rounded-2xl font-black text-sm uppercase tracking-wider shadow-lg shadow-brand/20 hover:shadow-brand/40 hover:-translate-y-0.5 transition-all active:scale-95 disabled:opacity-50 disabled:shadow-none disabled:translate-y-0 flex items-center justify-center gap-2">
+                    <button onClick={handleCobrarClick} disabled={!calc.amountTop} className="flex-1 h-20 bg-brand text-slate-900 rounded-2xl font-black text-sm uppercase tracking-wider shadow-lg shadow-brand/20 hover:shadow-brand/40 hover:-translate-y-0.5 transition-all active:scale-95 disabled:opacity-50 disabled:shadow-none disabled:translate-y-0 flex items-center justify-center gap-2">
                         <MessageSquare size={22} strokeWidth={2.5} />
+                        {/* El texto del botón ahora está en un <span> para mejor control */}
                         <span>{clientName ? `Nota para ${clientName}`: 'Generar Nota'}</span>
                     </button>
                     
-                    <button onClick={handleShareImage} className="col-span-1 h-20 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl text-slate-500 dark:text-slate-400 hover:shadow-lg hover:-translate-y-0.5 transition-all active:scale-95 flex flex-col items-center justify-center gap-1 shadow-sm">
+                    <button onClick={handleShareImage} className="h-20 w-20 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl text-slate-500 dark:text-slate-400 hover:shadow-lg hover:-translate-y-0.5 transition-all active:scale-95 flex flex-col items-center justify-center gap-1 shadow-sm">
                         <Camera size={20}/>
                         <span className="text-[9px] font-bold uppercase tracking-widest">Captura</span>
                     </button>
@@ -148,7 +145,7 @@ export const ManualMode = ({ rates, accounts, theme, clientName, setClientName }
                             originalSource: calc.from,
                             resultAmount: parseFloat(calc.amountBot || 0),
                             targetCurrency: calc.to,
-                            clientName: clientName // ✅ 7. Pasar clientName al modal
+                            clientName: clientName
                         }}
                         rates={rates}
                         onBack={() => accounts.length > 1 && setSelectedAccount(null)}
