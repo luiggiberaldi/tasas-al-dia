@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { Mic, MicOff, Copy, MessageSquare, Camera, ArrowRightLeft, User } from 'lucide-react';
 import html2canvas from 'html2canvas';
@@ -124,7 +125,7 @@ export const ManualMode = ({ rates, accounts, theme, clientName, setClientName }
                         <div>
                            <MessageSquare size={22} strokeWidth={2.5} />
                         </div>
-                        <div className="ml-2">
+                        <div style={{ marginLeft: '10px' }}>
                             <span className="whitespace-nowrap">{clientName ? `Nota para ${clientName}`: 'Generar Nota'}</span>
                         </div>
                     </button>
