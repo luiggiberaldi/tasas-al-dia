@@ -12,16 +12,15 @@ export function useCalculator(rates) {
   const currencies = [
     { id: 'VES', label: 'Bs.', icon: '🇻🇪', rate: 1 },
     { id: 'USDT', label: 'USDT', icon: '💵', rate: rates.usdt.price },
-    { id: 'BCV', label: '$ BCV', icon: '🏛️', rate: rates.bcv.price },
+    { id: 'USD', label: '$ BCV', icon: '🏛️', rate: rates.bcv.price },
     { id: 'EUR', label: 'Euro', icon: '💶', rate: rates.euro.price },
   ];
 
   const safeParse = (val) => (!val || val === '.') ? 0 : parseFloat(val.replace(/,/g, '.'));
 
   const addToHistory = useCallback((calculation) => {
-    // Evitar duplicados exactos y consecutivos
     if (JSON.stringify(history[0]) !== JSON.stringify(calculation)) {
-        setHistory(prev => [calculation, ...prev].slice(0, 5)); // Mantener solo los últimos 5
+        setHistory(prev => [calculation, ...prev].slice(0, 5));
     }
   }, [history]);
 
@@ -31,6 +30,8 @@ export function useCalculator(rates) {
 
     if (rateTo === 0 || rateFrom === 0) {
         setCurrentRate(0);
+        if (lastEdited === 'top') setAmountBot('');
+        else setAmountTop('');
         return;
     }
     
@@ -39,35 +40,35 @@ export function useCalculator(rates) {
 
     const applyRounding = (value, currencyId) => {
         if (currencyId === 'VES') return Math.ceil(value).toString();
-        return value.toFixed(2);
+        const fixedValue = value.toFixed(2);
+        return fixedValue.endsWith('.00') ? Math.trunc(value).toString() : fixedValue;
     };
 
-    let newAmount = '';
     if (lastEdited === 'top') {
         if (!amountTop) { setAmountBot(''); return; }
         const res = safeParse(amountTop) * conversionRate;
-        newAmount = applyRounding(res, to);
-        setAmountBot(newAmount);
+        setAmountBot(applyRounding(res, to));
     } else {
         if (!amountBot) { setAmountTop(''); return; }
         const res = safeParse(amountBot) / conversionRate;
-        newAmount = applyRounding(res, from);
-        setAmountTop(newAmount);
+        setAmountTop(applyRounding(res, from));
     }
 
-    // Lógica para añadir a historial (con debounce)
     const timer = setTimeout(() => {
-      if (safeParse(amountTop) > 0 && safeParse(newAmount) > 0) {
+      const topValue = safeParse(amountTop);
+      const botValue = safeParse(lastEdited === 'top' ? amountBot : amountTop) * (lastEdited === 'top' ? 1 : 1/conversionRate) ;
+
+      if (topValue > 0 && botValue > 0) {
         addToHistory({
           from,
           to,
-          amountTop: safeParse(amountTop),
-          amountBot: safeParse(newAmount),
+          amountTop: topValue,
+          amountBot: botValue,
           rate: conversionRate,
           id: Date.now()
         });
       }
-    }, 1200); // Espera 1.2s de inactividad antes de guardar
+    }, 1200);
 
     return () => clearTimeout(timer);
 
@@ -75,9 +76,10 @@ export function useCalculator(rates) {
 
   const handleAmountChange = (val, source) => {
     const currentCurrency = source === 'top' ? from : to;
+    const cleanedVal = val.replace(/,/g, '.');
     const isValid = currentCurrency === 'VES' 
-        ? /^\d*$/.test(val) 
-        : /^\d*\.?\d{0,2}$/.test(val.replace(/,/g, '.'));
+        ? /^\d*$/.test(cleanedVal) 
+        : /^\d*\.?\d{0,2}$/.test(cleanedVal);
 
     if (isValid) {
         if (source === 'top') { setAmountTop(val); setLastEdited('top'); }
@@ -88,7 +90,6 @@ export function useCalculator(rates) {
   const handleSwap = () => {
     setFrom(to);
     setTo(from);
-    setAmountTop(amountBot); 
     setLastEdited('top');
   };
   
@@ -101,9 +102,15 @@ export function useCalculator(rates) {
     setLastEdited('top');
   };
 
+  const setPair = (newFrom, newTo) => {
+      setFrom(newFrom);
+      setTo(newTo);
+      setLastEdited('top'); // o 'bot' según la lógica deseada
+  }
+
   return {
     amountTop, amountBot, from, to, currencies, currentRate, history,
-    setFrom, setTo,
+    setFrom, setTo, setPair,
     handleAmountChange, handleSwap, clear, loadFromHistory,
     safeParse
   };

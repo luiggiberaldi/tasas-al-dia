@@ -49,7 +49,7 @@ export default function CalculatorInput({ label, amount, currency, currencies, o
                 onChange={(e) => onCurrencyChange(e.target.value)} 
                 className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
             >
-                {currencies.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+                {currencies.map(c => <option key={c.id} value={c.id} className="font-bold text-black bg-white dark:text-white dark:bg-slate-700">{c.label}</option>)}
             </select>
         </div>
 

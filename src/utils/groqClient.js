@@ -1,61 +1,44 @@
-import Groq from "groq-sdk";
+import Groq from 'groq-sdk';
 
-const GROQ_API_KEY = import.meta.env.VITE_GROQ_API_KEY;
+// --- 🔐 API Keys con Sistema de Respaldo desde Variables de Entorno ---
+const GROQ_API_KEYS = [
+    import.meta.env.VITE_GROQ_API_KEY_1,
+    import.meta.env.VITE_GROQ_API_KEY_2
+].filter(Boolean); // Filtra para eliminar valores nulos o vacíos
 
-// 🔍 DIAGNÓSTICO
-console.log("🔑 ESTADO API KEY:", GROQ_API_KEY ? "✅ Cargada correctamente" : "❌ NO ENCONTRADA");
+// --- 🦾 Función Auxiliar para Llamadas a la IA con Respaldo ---
+const createGroqCompletion = async (requestBody) => {
+    if (GROQ_API_KEYS.length === 0) {
+        console.error("❌ No se encontraron claves de API de Groq. Asegúrate de configurar tu archivo .env");
+        return null;
+    }
 
-const groq = new Groq({ 
-    apiKey: GROQ_API_KEY, 
-    dangerouslyAllowBrowser: true 
-});
+    for (const key of GROQ_API_KEYS) {
+        try {
+            const groq = new Groq({ apiKey: key, dangerouslyAllowBrowser: true });
+            const completion = await groq.chat.completions.create(requestBody);
+            console.log(`✅ Solicitud a la IA exitosa con la clave que termina en ...${key.slice(-4)}`);
+            return completion;
+        } catch (error) {
+            console.warn(`⚠️ Falló la clave que termina en ...${key.slice(-4)}. Intentando con la siguiente. Error: ${error.message}`);
+        }
+    }
+    console.error("❌ Todas las claves de la IA fallaron.");
+    throw new Error("Todas las claves de Groq API fallaron.");
+};
 
-// --- 🧠 CEREBRO MAESTRO: MISTER CAMBIO ---
-export const interpretVoiceCommandAI = async (messagesHistoryOrText) => {
-    if (!GROQ_API_KEY) return null;
+const systemPrompt = `Eres "Mister Cambio", una IA conversacional experta en finanzas venezolanas, integrada en la app "TasasAlDía". Eres amable, preciso, y tu objetivo principal es interpretar el lenguaje natural del usuario para extraer sus intenciones de cálculo de divisas y devolver un objeto JSON estructurado, sin añadir texto extra.
 
-    const messages = typeof messagesHistoryOrText === 'string' 
-        ? [{ role: "user", content: messagesHistoryOrText }]
-        : messagesHistoryOrText;
+### CONTEXTO DE LA APLICACIÓN Y TASAS DISPONIBLES:
+- La app tiene acceso a las siguientes tasas:
+  1.  **BCV:** La tasa oficial del Banco Central de Venezuela para el Dólar (USD) y el Euro (EUR).
+  2.  **USDT:** La tasa del 'dólar digital' (Tether) en el mercado P2P de Binance.
+- Todas las conversiones se realizan usando estas tasas como referencia.
 
-    try {
-        const completion = await groq.chat.completions.create({
-            messages: [
-                {
-                    role: "system",
-                    content: `Eres "Mister Cambio", el asistente IA de la app "TasasAlDía". Eres un experto financiero venezolano, amable, preciso y muy servicial. Tu propósito es ayudar a los usuarios a realizar cálculos de divisas de forma rápida y natural.
+### TU TRABAJO:
+Analiza la petición del usuario, por muy informal o abreviada que sea, y tradúcela a un objeto JSON con la siguiente estructura. No respondas nada más que el JSON.
 
-CONTEXTO CLAVE DE LA APP:
-- La app calcula tasas entre Bolívares (VES), Dólares (USD/BCV), Tether (USDT) y Euros (EUR).
-- La conversión más común que hacen los usuarios es de Dólares (USD/USDT) a Bolívares (VES).
-
-TU TRABAJO:
-Analizar la petición del usuario, incluso si es informal, y extraer los datos clave en un formato JSON. Debes ser muy preciso e inteligente para interpretar la intención del usuario.
-
-REGLAS DE INTERPRETACIÓN:
-1.  **INFERENCIA DE MONEDA DE ORIGEN (currency):**
-    - "USDT", "Tether", "Binance", "P2P", "usdt" => "USDT"
-    - "Dólar", "$", "USD", "BCV", "Banco Central", "Efectivo", "Verdes", "dólares", "lucas" => "USD"
-    - "Euro", "Euros", "€", "euros" => "EUR"
-    - "Bolívares", "Bs", "Bolos", "bolívares", "soberanos", "fuertes" => "VES"
-
-2.  **INFERENCIA DE MONEDA DE DESTINO (targetCurrency):**
-    - **PRIORIDAD 1:** Si el usuario especifica claramente una moneda de destino (ej: "a bolívares", "en usdt", "pasalos a dolares"), ESA ES LA QUE DEBES USAR.
-    - **PRIORIDAD 2 (POR DEFECTO):** Si el usuario NO especifica un destino, usa estas reglas:
-        - Si el origen es "USD" o "USDT", el destino por defecto es "VES".
-        - Si el origen es "VES", el destino por defecto es "USD".
-        - Si el origen es "EUR", el destino por defecto es "VES".
-
-3.  **IDENTIFICACIÓN DE INTENCIÓN (intent):**
-    - Si el usuario dice "invierte", "al revés", "swap", "cambia el orden" o similar, el intent es "invertir".
-    - En todos los demás casos, el intent es "calcular".
-
-4.  **EXTRACCIÓN DE NOMBRE DE CLIENTE (clientName):**
-    - Si el usuario menciona "para Maria", "a nombre de Pedro", "cliente Juan", etc., extrae ese nombre.
-
-ESTRUCTURA DE RESPUESTA JSON (OBLIGATORIA):
-Debes responder ÚNICAMENTE con el objeto JSON, sin explicaciones ni texto adicional.
-
+### ESTRUCTURA JSON DE SALIDA:
 {
   "intent": "calcular" | "invertir",
   "amount": number | null,
@@ -64,16 +47,67 @@ Debes responder ÚNICAMENTE con el objeto JSON, sin explicaciones ni texto adici
   "clientName": string | null
 }
 
-EJEMPLOS CLAVE:
-- "100 dolares" -> {"intent": "calcular", "amount": 100, "currency": "USD", "targetCurrency": "VES", "clientName": null}
-- "cuanto son 1200$ a usdt" -> {"intent": "calcular", "amount": 1200, "currency": "USD", "targetCurrency": "USDT", "clientName": null}
-- "50 euros a dolares" -> {"intent": "calcular", "amount": 50, "currency": "EUR", "targetCurrency": "USD", "clientName": null}
-- "20€ en bolívares" -> {"intent": "calcular", "amount": 20, "currency": "EUR", "targetCurrency": "VES", "clientName": null}
-- "cuanto es 50 usdt para Juan" -> {"intent": "calcular", "amount": 50, "currency": "USDT", "targetCurrency": "VES", "clientName": "Juan"}
-- "1500 bolivares" -> {"intent": "calcular", "amount": 1500, "currency": "VES", "targetCurrency": "USD", "clientName": null}
-- "invierte" -> {"intent": "invertir", "amount": null, "currency": null, "targetCurrency": null, "clientName": null}
-- "100" -> {"intent": "calcular", "amount": 100, "currency": null, "targetCurrency": null, "clientName": null}
-`
+---
+
+### REGLAS DETALLADAS DE INTERPRETACIÓN:
+
+#### 1. Inferencia de Moneda de Origen ('currency'):
+Debes ser muy astuto para identificar la moneda de origen a partir de la jerga.
+- **USDT:** "USDT", "Tether", "Binance", "P2P", "usdt", "teresa", "theter"
+- **USD:** "Dólar", "$", "USD", "BCV", "Banco Central", "Efectivo", "Verdes", "dólares", "dolaritos", "lechugas", "washingtons", "lucas"
+- **EUR:** "Euro", "Euros", "€", "euros"
+- **VES:** "Bolívares", "Bs", "Bolos", "bolívares", "soberanos", "fuertes", "bsf"
+
+#### 2. Inferencia de Moneda de Destino ('targetCurrency'):
+- **PRIORIDAD MÁXIMA:** Si el destino es explícito (ej: "a bolívares", "en usdt", "pasalos a $"), usa ese.
+- **LÓGICA POR DEFECTO (Si no hay destino explícito):**
+  - Origen 'USD' o 'USDT' => Destino por defecto 'VES'. (La gente siempre quiere saber cuántos bolívares son sus dólares).
+  - Origen 'VES' => Destino por defecto 'USD'. (Quieren saber cuántos dólares son sus bolívares).
+  - Origen 'EUR' => Destino por defecto 'VES'.
+
+#### 3. Identificación de Intención ('intent'):
+- Si el usuario quiere repetir el último cálculo pero al revés, usa 'invertir'. Palabras clave: "invierte", "al revés", "swap", "cambia el orden", "y si fuera al contrario".
+- Para todo lo demás, el 'intent' es 'calcular'.
+
+#### 4. Extracción de Nombre de Cliente ('clientName'):
+- Si la petición incluye un destinatario (ej: "para Maria", "a nombre de Pedro", "guárdale eso a Juan"), extrae el nombre.
+
+---
+
+### EJEMPLOS PARA PERFECCIONAR TU LÓGICA:
+
+- **Básicos:**
+  - "100 dolares" -> {"intent": "calcular", "amount": 100, "currency": "USD", "targetCurrency": "VES", "clientName": null}
+  - "1500 bolivares" -> {"intent": "calcular", "amount": 1500, "currency": "VES", "targetCurrency": "USD", "clientName": null}
+
+- **Entre Monedas Fuertes:**
+  - "cuanto son 1200$ a usdt" -> {"intent": "calcular", "amount": 1200, "currency": "USD", "targetCurrency": "USDT", "clientName": null}
+  - "10 usdt a $" -> {"intent": "calcular", "amount": 10, "currency": "USDT", "targetCurrency": "USD", "clientName": null}
+  - "50 euros a dolares" -> {"intent": "calcular", "amount": 50, "currency": "EUR", "targetCurrency": "USD", "clientName": null}
+
+- **Con Cliente:**
+  - "cuanto es 50 usdt para Juan" -> {"intent": "calcular", "amount": 50, "currency": "USDT", "targetCurrency": "VES", "clientName": "Juan"}
+
+- **Informales y Abreviados:**
+  - "30 lechugas" -> {"intent": "calcular", "amount": 30, "currency": "USD", "targetCurrency": "VES", "clientName": null}
+
+- **Invertir:**
+  - "invierte" -> {"intent": "invertir", "amount": null, "currency": null, "targetCurrency": null, "clientName": null}`; 
+
+// --- 🧠 SUPER-CEREBRO V2: MISTER CAMBIO ---
+export const interpretVoiceCommandAI = async (messagesHistoryOrText) => {
+    if (!GROQ_API_KEYS || GROQ_API_KEYS.length === 0) return null;
+
+    const messages = typeof messagesHistoryOrText === 'string' 
+        ? [{ role: "user", content: messagesHistoryOrText }]
+        : messagesHistoryOrText;
+
+    try {
+        const completion = await createGroqCompletion({
+            messages: [
+                {
+                    role: "system",
+                    content: systemPrompt
                 },
                 ...messages 
             ],
@@ -82,23 +116,23 @@ EJEMPLOS CLAVE:
             response_format: { type: "json_object" },
         });
 
-        return JSON.parse(completion.choices[0].message.content);
+        return completion ? JSON.parse(completion.choices[0].message.content) : null;
     } catch (e) {
         console.error("Error AI:", e);
         return null;
     }
 };
 
-// --- 👁️ VISIÓN (Sin cambios) ---
+// --- 👁️ VISIÓN ---
 export const analyzeImageAI = async (base64Image) => {
-    if (!GROQ_API_KEY) return null;
+    if (!GROQ_API_KEYS || GROQ_API_KEYS.length === 0) return null;
     try {
-        const completion = await groq.chat.completions.create({
+        const completion = await createGroqCompletion({
             messages: [
                 {
                     role: "user",
                     content: [
-                        { type: "text", text: "Lee el monto. JSON: { \"amount\": number, \"currency\": \"USD\"|\"USDT\"|\"VES\"|\"EUR\" }" },
+                        { type: "text", text: 'Lee el monto. Devuelve solo JSON: { "amount": number, "currency": "USD"|"USDT"|"VES"|"EUR" }' },
                         { type: "image_url", image_url: { url: base64Image } }
                     ]
                 }
@@ -107,13 +141,16 @@ export const analyzeImageAI = async (base64Image) => {
             temperature: 0,
             response_format: { type: "json_object" },
         });
-        return JSON.parse(completion.choices[0].message.content);
-    } catch (e) { return null; }
+        return completion ? JSON.parse(completion.choices[0].message.content) : null;
+    } catch (e) { 
+        console.error("Error en analyzeImageAI:", e);
+        return null; 
+    }
 };
 
 // --- ✍️ REDACCIÓN: MISTER CAMBIO AMABLE ---
 export const generateSmartMessage = async (account, amountsString, tone, clientName) => {
-    if (!GROQ_API_KEY) return null;
+    if (!GROQ_API_KEYS || GROQ_API_KEYS.length === 0) return null;
     try {
         const safeName = (clientName && clientName.length < 20) ? clientName : "Estimado/a";
         
@@ -147,14 +184,16 @@ REGLAS ADICIONALES:
 - Mantén un lenguaje español venezolano, neutro y masculino.
 - Sé conciso y directo, pero siempre amable.
 - NO inventes información que no se proporciona.
-- Si el método de pago es "Zelle", no incluyas Cédula/RIF.
-`;
+- Si el método de pago es "Zelle", no incluyas Cédula/RIF.`;
 
-        const completion = await groq.chat.completions.create({
+        const completion = await createGroqCompletion({
             messages: [{ role: "user", content: prompt }],
             model: "llama-3.1-8b-instant",
         });
 
-        return completion.choices[0].message.content;
-    } catch (e) { return null; }
+        return completion ? completion.choices[0].message.content : null;
+    } catch (e) { 
+        console.error("Error en generateSmartMessage:", e);
+        return null; 
+    }
 };

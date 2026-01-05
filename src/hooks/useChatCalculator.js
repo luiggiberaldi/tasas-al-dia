@@ -9,7 +9,14 @@ export const useChatCalculator = (rates, speak, setClientName) => {
     const [isProcessing, setIsProcessing] = useState(false);
     const messagesEndRef = useRef(null);
 
-    // Auto-scroll
+    // Replicamos la lista de monedas del hook principal para asegurar consistencia
+    const currencies = [
+        { id: 'VES', label: 'Bs.', rate: 1 },
+        { id: 'USDT', label: 'USDT', rate: rates.usdt.price },
+        { id: 'USD', label: '$ BCV', rate: rates.bcv.price },
+        { id: 'EUR', label: 'Euro', rate: rates.euro.price },
+    ];
+
     useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
 
     const addMessage = (role, type, content, data = null) => {
@@ -17,59 +24,68 @@ export const useChatCalculator = (rates, speak, setClientName) => {
     };
 
     const processAIResult = (aiResult) => {
+        // --- INTENTO DE INVERSIÓN ---
         if (aiResult?.intent === 'invertir') {
-            // Implementar lógica de inversión si es necesario
-            addMessage('bot', 'text', 'Función de invertir aún no implementada en el chat.');
+            addMessage('bot', 'text', 'La función de invertir aún no está disponible en el chat. ¡Próximamente!');
             setIsProcessing(false);
             return;
         }
 
-        if (aiResult?.amount) {
-            // ✅ Si la IA detecta un nombre, se actualiza el estado central
+        // --- VALIDACIÓN DE DATOS MÍNIMOS DE LA IA ---
+        if (aiResult?.amount && aiResult?.currency && aiResult?.targetCurrency) {
+            
             if (aiResult.clientName) {
                 setClientName(aiResult.clientName);
             }
 
             const amount = parseFloat(aiResult.amount);
-            const currency = aiResult.currency || 'USD';
-            let target = aiResult.targetCurrency || 'VES'; // Default a VES si no se especifica
-            
-            let result = 0, rateUsed = 0, rateName = '';
-            
-            if (currency === 'USDT' && target === 'VES') {
-                rateUsed = rates.usdt.price;
-                result = amount * rateUsed;
-                rateName = 'Tasa Paralelo (USDT)';
-            } else if (currency === 'USD' && target === 'VES') {
-                rateUsed = rates.bcv.price;
-                result = amount * rateUsed;
-                rateName = 'Tasa Oficial (BCV)';
-            } else if (currency === 'EUR' && target === 'VES') {
-                rateUsed = rates.euro.price;
-                result = amount * rateUsed;
-                rateName = 'Tasa Euro';
-            } else if (currency === 'VES' && target === 'USD') {
-                rateUsed = rates.bcv.price;
-                result = amount / rateUsed;
-                rateName = 'Tasa Oficial (BCV)';
-            } else {
-                // Lógica de conversión para otras combinaciones (ej. USD a USDT)
-                // Esta parte puede necesitar más detalle según las reglas de negocio
-                addMessage('bot', 'text', `No se pudo convertir de ${currency} a ${target}.`);
+            const fromCurrency = aiResult.currency;
+            const toCurrency = aiResult.targetCurrency;
+
+            const rateFromObj = currencies.find(c => c.id === fromCurrency);
+            const rateToObj = currencies.find(c => c.id === toCurrency);
+
+            // --- MANEJO DE MONEDAS NO ENCONTRADAS ---
+            if (!rateToObj || !rateFromObj) {
+                addMessage('bot', 'text', `No pude encontrar una tasa para convertir de ${fromCurrency} a ${toCurrency}.`);
                 setIsProcessing(false);
                 return;
             }
 
-            const data = { 
-                originalAmount: amount, originalSource: currency, 
-                resultAmount: result, targetCurrency: target, 
-                rateUsed, rateName, clientName: aiResult.clientName 
+            // --- LÓGICA DE CÁLCULO UNIFICADA ---
+            const conversionRate = rateFromObj.rate / rateToObj.rate;
+            const result = amount * conversionRate;
+
+            // --- LÓGICA PARA MOSTRAR LA TASA RELEVANTE EN LA BURBUJA ---
+            let rateUsedForDisplay;
+            let rateName;
+
+            if (fromCurrency === 'VES') {
+                rateUsedForDisplay = rateToObj.rate;
+                rateName = `Tasa ${rateToObj.label}`;
+            } else if (toCurrency === 'VES') {
+                rateUsedForDisplay = rateFromObj.rate;
+                rateName = `Tasa ${rateFromObj.label}`;
+            } else { // Conversión entre dos monedas fuertes (ej: USDT a USD)
+                rateUsedForDisplay = conversionRate;
+                rateName = `Tasa ${fromCurrency}/${toCurrency}`;
+            }
+            
+            const data = {
+                originalAmount: amount,
+                originalSource: fromCurrency,
+                resultAmount: result,
+                targetCurrency: toCurrency,
+                rateUsed: rateUsedForDisplay,
+                rateName,
+                clientName: aiResult.clientName
             };
 
             addMessage('bot', 'calculation', null, data);
             
-            const vozMonto = target === 'VES' ? formatBs(result) : formatUsd(result, 2);
+            const vozMonto = toCurrency === 'VES' ? formatBs(result) : formatUsd(result, 2);
             speak(`Son ${vozMonto}.`);
+
         } else {
             addMessage('bot', 'text', 'No entendí la instrucción. Prueba con algo como: "100 dólares" o "cuánto es 50 usdt para Juan".');
         }
@@ -83,7 +99,7 @@ export const useChatCalculator = (rates, speak, setClientName) => {
         try {
             const history = messages.slice(-5).map(m => ({ 
                 role: m.role === 'user' ? 'user' : 'assistant',
-                content: m.content || `Cálculo anterior` 
+                content: m.content || 'Cálculo anterior' 
             }));
 
             const aiResult = await interpretVoiceCommandAI([...history, { role: 'user', content: text }]);
