@@ -121,9 +121,12 @@ export const ManualMode = ({ rates, accounts, theme, clientName, setClientName }
                     </button>
                     
                     <button onClick={handleCobrarClick} disabled={!calc.amountTop} className="flex-1 h-20 bg-brand text-slate-900 rounded-2xl font-black text-sm uppercase tracking-wider shadow-lg shadow-brand/20 hover:shadow-brand/40 hover:-translate-y-0.5 transition-all active:scale-95 disabled:opacity-50 disabled:shadow-none disabled:translate-y-0 flex items-center justify-center">
-                        <MessageSquare size={22} strokeWidth={2.5} />
-                        <div className='w-3'></div>
-                        <span className="whitespace-nowrap">{clientName ? `Nota para ${clientName}`: 'Generar Nota'}</span>
+                        <div>
+                           <MessageSquare size={22} strokeWidth={2.5} />
+                        </div>
+                        <div className="ml-2">
+                            <span className="whitespace-nowrap">{clientName ? `Nota para ${clientName}`: 'Generar Nota'}</span>
+                        </div>
                     </button>
                     
                     <button onClick={handleShareImage} className="h-20 w-20 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl text-slate-500 dark:text-slate-400 hover:shadow-lg hover:-translate-y-0.5 transition-all active:scale-95 flex flex-col items-center justify-center gap-1 shadow-sm">
