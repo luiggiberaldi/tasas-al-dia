@@ -1,15 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { Home, Calculator, Info, Download, CreditCard } from 'lucide-react'; 
+import { Home, Calculator, Info, Download, CreditCard } from 'lucide-react';
 
 import MonitorView from './views/MonitorView';
 import CalculatorView from './views/CalculatorView';
 import InfoView from './views/InfoView';
-import WalletView from './views/WalletView'; 
+import WalletView from './views/WalletView';
 
-import { useRates } from './hooks/useRates'; 
+import { useRates } from './hooks/useRates';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState('monitor'); 
+  const [activeTab, setActiveTab] = useState('monitor');
   const [installPrompt, setInstallPrompt] = useState(null);
   
   const { rates, loading, isOffline, logs, updateData, notificationsEnabled, enableNotifications } = useRates();
@@ -45,10 +45,16 @@ export default function App() {
 
   const toggleTheme = () => setTheme(prev => prev === 'light' ? 'dark' : 'light');
 
+  // ✅ CORRECCIÓN DE LAYOUT PRINCIPAL
+  // 1. Contenedor a pantalla completa y flexbox vertical (h-screen flex flex-col)
+  // 2. Se elimina min-h-screen para evitar conflictos.
   return (
-    <div className="font-sans antialiased bg-slate-50 dark:bg-black min-h-screen transition-colors duration-300">
+    <div className="font-sans antialiased bg-slate-50 dark:bg-black h-screen flex flex-col transition-colors duration-300">
       
-      <main className="max-w-md mx-auto min-h-screen px-4 py-8 relative pb-36">
+      {/* ✅ ÁREA DE CONTENIDO CON SCROLL INTERNO */}
+      {/* 1. Crece para llenar el espacio (flex-1) y permite scroll (overflow-y-auto) */}
+      {/* 2. El padding inferior (pb-36) asegura que el contenido no quede oculto por la barra de navegación */}
+      <main className="max-w-md mx-auto w-full flex-1 overflow-y-auto px-4 pt-8 pb-36">
         {activeTab === 'monitor' && (
           <MonitorView 
             rates={rates} loading={loading} isOffline={isOffline} 
@@ -60,6 +66,7 @@ export default function App() {
         )}
         
         {activeTab === 'calc' && (
+          // La vista de la calculadora ahora vivirá dentro de un contenedor con scroll correcto.
           <CalculatorView rates={rates} toggleTheme={toggleTheme} theme={theme} />
         )}
 
@@ -72,11 +79,12 @@ export default function App() {
             logs={logs} 
             toggleTheme={toggleTheme} 
             theme={theme} 
-            setActiveTab={setActiveTab} // Prop para cambiar de pestaña
+            setActiveTab={setActiveTab}
           />
         )}
       </main>
 
+      {/* La barra de navegación se mantiene fija en la parte inferior */}
       <div className="fixed bottom-6 left-0 right-0 px-4 max-w-md mx-auto z-30">
         <div className="bg-slate-900/95 dark:bg-slate-950/95 backdrop-blur-xl rounded-3xl p-1.5 flex justify-between items-center shadow-2xl shadow-slate-900/30 border border-white/10 ring-1 ring-black/5">
           <TabButton icon={<Home size={20} strokeWidth={activeTab === 'monitor' ? 3 : 2} />} label="Inicio" isActive={activeTab === 'monitor'} onClick={() => setActiveTab('monitor')} />
