@@ -126,7 +126,7 @@ export const ManualMode = ({ rates, accounts, theme, clientName, setClientName }
                            <MessageSquare size={22} strokeWidth={2.5} />
                         </div>
                         <div style={{ marginLeft: '10px' }}>
-                            <span className="whitespace-nowrap">{clientName ? `Nota para ${clientName}`: 'Generar Nota'}</span>
+                            <span className="whitespace-nowrap">{clientName ? `Enviar a ${clientName}`: 'Enviar'}</span>
                         </div>
                     </button>
                     
