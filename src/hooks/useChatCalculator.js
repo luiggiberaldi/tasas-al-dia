@@ -33,14 +33,22 @@ export const useChatCalculator = (rates, speak) => {
             let result = 0, rateUsed = 0, rateName = '';
             
             // Lógica de Negocio (Tasas)
-            if (currency === 'USDT' && target === 'USD') { 
-                rateUsed = rates.usdt.price / rates.bcv.price; 
-                result = amount * rateUsed; 
-                rateName = 'Brecha (USDT → BCV)'; 
-            } else if (currency === 'USD' && target === 'USDT') { 
-                rateUsed = rates.bcv.price / rates.usdt.price; 
-                result = amount * rateUsed; 
-                rateName = 'Brecha (BCV → USDT)'; 
+            if (currency === 'USDT' && target === 'USD') {
+                rateUsed = rates.usdt.price / rates.bcv.price;
+                result = amount * rateUsed;
+                rateName = 'Brecha (USDT → BCV)';
+            } else if (currency === 'USD' && target === 'USDT') {
+                rateUsed = rates.bcv.price / rates.usdt.price;
+                result = amount * rateUsed;
+                rateName = 'Brecha (BCV → USDT)';
+            } else if (currency === 'USD' && target === 'EUR') {
+                rateUsed = rates.bcv.price / rates.euro.price;
+                result = amount * rateUsed;
+                rateName = 'Dólar a Euro';
+            } else if (currency === 'EUR' && target === 'USD') {
+                rateUsed = rates.euro.price / rates.bcv.price;
+                result = amount * rateUsed;
+                rateName = 'Euro a Dólar';
             } else if (target === 'VES') {
                 if (currency === 'USDT') { rateUsed = rates.usdt.price; rateName = 'Tasa USDT'; }
                 else if (currency === 'EUR') { rateUsed = rates.euro.price; rateName = 'Tasa Euro'; }

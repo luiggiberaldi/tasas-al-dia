@@ -3,6 +3,8 @@ export default {
   content: [
     "./index.html",
     "./src/**/*.{js,ts,jsx,tsx}",
+    "./src/components/**/*.{js,ts,jsx,tsx}",
+    "./src/views/**/*.{js,ts,jsx,tsx}",
   ],
   darkMode: 'class', // Control manual del modo oscuro
   theme: {
