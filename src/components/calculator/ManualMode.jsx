@@ -110,13 +110,10 @@ export const ManualMode = ({ rates, accounts, theme, clientName, setClientName }
                             className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl py-3 pl-10 pr-4 text-sm font-semibold text-slate-700 dark:text-slate-200 placeholder:text-slate-400 focus:ring-2 focus:ring-brand-dark outline-none transition-all"
                         />
                     </div>
-
-                    {/* ✅ 1. SE ELIMINA EL HISTORIAL DE LA CALCULADORA */}
                 </div>
             </div>
 
             <div className="p-5 pt-2 flex-shrink-0 z-20 bg-gradient-to-t from-slate-50 via-slate-50 to-transparent dark:from-slate-950 dark:via-slate-950">
-                {/* ✅ 2. LAYOUT DE BOTONES CORREGIDO CON FLEXBOX */}
                 <div className="flex items-center gap-3">
                     <button onClick={handleCopy} className="h-20 w-20 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl text-slate-500 dark:text-slate-400 hover:shadow-lg hover:-translate-y-0.5 transition-all active:scale-95 flex flex-col items-center justify-center gap-1 shadow-sm">
                         <Copy size={20}/>
@@ -125,8 +122,8 @@ export const ManualMode = ({ rates, accounts, theme, clientName, setClientName }
                     
                     <button onClick={handleCobrarClick} disabled={!calc.amountTop} className="flex-1 h-20 bg-brand text-slate-900 rounded-2xl font-black text-sm uppercase tracking-wider shadow-lg shadow-brand/20 hover:shadow-brand/40 hover:-translate-y-0.5 transition-all active:scale-95 disabled:opacity-50 disabled:shadow-none disabled:translate-y-0 flex items-center justify-center gap-2">
                         <MessageSquare size={22} strokeWidth={2.5} />
-                        {/* El texto del botón ahora está en un <span> para mejor control */}
-                        <span>{clientName ? `Nota para ${clientName}`: 'Generar Nota'}</span>
+                        {/* ✅ CLASE CSS AÑADIDA PARA EVITAR EL SALTO DE LÍNEA */}
+                        <span className="whitespace-nowrap">{clientName ? `Nota para ${clientName}`: 'Generar Nota'}</span>
                     </button>
                     
                     <button onClick={handleShareImage} className="h-20 w-20 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl text-slate-500 dark:text-slate-400 hover:shadow-lg hover:-translate-y-0.5 transition-all active:scale-95 flex flex-col items-center justify-center gap-1 shadow-sm">

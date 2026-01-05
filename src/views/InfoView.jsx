@@ -163,7 +163,7 @@ const Ecosystem = ({ setActiveTab }) => (
 const FeatureCard = ({ icon, title, desc, bgClass, onClick }) => (
     <button onClick={onClick} className="bg-white text-left dark:bg-slate-900 p-4 rounded-[1.5rem] border border-slate-100 dark:border-slate-800 shadow-sm hover:shadow-md hover:-translate-y-1 transition-all duration-300 group">
         <div className={`w-fit p-2.5 rounded-xl mb-3 ${bgClass} group-hover:scale-110 transition-transform duration-300`}>{React.cloneElement(icon, { strokeWidth: 2.5 })}</div>
-        <h4 className="font-bold text-slate-800 dark:text-white text-xs mb-1 uppercase tracking-wide">{title}</h4>
+        <h4 className="font-bold text-slate-800 dark:text-white text-xs mb-1 uppercase-tracking-wide">{title}</h4>
         <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-relaxed font-medium">{desc}</p>
     </button>
 );
